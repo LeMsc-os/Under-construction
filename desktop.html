@@ -155,7 +155,16 @@
     .tab{flex:0 0 auto;padding:12px 26px;font-size:14px}
     .panel{display:block;column-count:2;column-gap:18px;margin-top:18px}
     .panel>*{break-inside:avoid;margin:0 0 18px;display:block}
-    .panel>.tbl{break-inside:auto}
+    body .wrap{padding:22px 36px 28px}
+    .indR>.tbl{display:grid;gap:14px;background:none;border:0;border-radius:0;overflow:visible}
+    .panel>.tbl{column-span:all;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px;background:none;border:0;border-radius:0;overflow:visible;margin-bottom:18px}
+    .tbl>.trow,.tbl>.irow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:0}
+    .tbl>.trow:last-child,.tbl>.irow:last-child{border-bottom:1px solid var(--line)}
+    .panel>.tbl+.card{max-width:760px}
+    .panel>.indwrap{column-span:all;display:grid;grid-template-columns:minmax(0,600px) minmax(0,1fr);gap:18px;align-items:start;margin-bottom:18px}
+    .indR>.card{margin-bottom:14px}
+    .indR>.tbl{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+    @media (max-width:1250px){.panel>.indwrap{grid-template-columns:minmax(0,1fr)}}
     .panel>.seggrp{display:flex}
     .card{padding:16px 18px;border-radius:12px}
     h2{font-size:14.5px}
@@ -1141,7 +1150,7 @@ function indTab(){
       (x.g!=null?'<div class="gauge" style="--c:'+col+'"><i style="width:'+x.g.toFixed(0)+'%"></i></div>':'')+
       '<div class="row" style="margin-top:7px"><span class="sub">'+x.txt+'</span><span>'+(x.sig==="NA"?"":'<span class="chip '+x.sig.replace("BULL","BULLISH").replace("BEAR","BEARISH").replace("NEUT","NEUTRAL")+'">'+lab+'</span>')+fl+'</span></div></div>';
   }).join("");
-  return map+'<div class="card"><div class="row" style="margin-bottom:10px"><h2>Detail</h2><span class="lbl">Timeframe</span></div>'+sel+'</div><div class="tbl">'+rows+'</div>';
+  return'<div class="indwrap"><div>'+map+'</div><div class="indR"><div class="card"><div class="row" style="margin-bottom:10px"><h2>Detail</h2><span class="lbl">Timeframe</span></div>'+sel+'</div><div class="tbl">'+rows+'</div></div></div>';
 }
 
 var lastPair=null;
