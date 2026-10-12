@@ -135,6 +135,37 @@
 .frow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:baseline}
   .frow.cur{background:color-mix(in srgb,var(--acc) 12%,transparent);border-radius:6px;padding-inline:6px;margin-inline:-6px}
   .frow.gold b{color:var(--warn)}
+
+  /* ===== Desktop layout (Windows / large screens): full-width dashboard ===== */
+  @media (min-width:1000px){
+    body{font-size:15px}
+    .wrap{max-width:1760px;padding:22px 36px 28px}
+    .hdr{display:grid;grid-template-columns:auto minmax(280px,1fr) auto;align-items:center;gap:20px 40px}
+    .hdr .hrow{margin-top:0;justify-content:flex-start;gap:48px;align-items:center}
+    .hdr .scorebox{text-align:left;display:flex;align-items:center;gap:14px}
+    .hdr .scorebox .lbl{max-width:130px}
+    .hdr .scorebox .big{font-size:30px}
+    .hdr .scorebox>div:last-child{margin-top:0!important}
+    .price{font-size:38px}
+    .modes{margin-top:0}
+    .modes .seggrp{width:auto}
+    .modes .seg{padding:7px 22px;flex:none}
+    .seg{font-size:13px;padding:8px 16px}
+    .tabs{margin-top:16px}
+    .tab{flex:0 0 auto;padding:12px 26px;font-size:14px}
+    .panel{display:block;column-count:2;column-gap:18px;margin-top:18px}
+    .panel>*{break-inside:avoid;margin:0 0 18px;display:block}
+    .panel>.tbl{break-inside:auto}
+    .panel>.seggrp{display:flex}
+    .card{padding:16px 18px;border-radius:12px}
+    h2{font-size:14.5px}
+    .sub,.notes{font-size:13.5px}
+    .heat{gap:8px}
+    .foot,.panel>p.foot{column-span:all}
+    svg.chart{max-width:620px;margin-inline:auto}
+  }
+  @media (min-width:1700px){.panel{column-count:3}}
+  @media (min-width:1000px) and (max-height:760px){.price{font-size:30px}}
 </style>
 
 </head>
@@ -535,9 +566,9 @@ function head(ag){
   var syms=["BTC","ETH","SOL"].map(function(s){return'<button class="seg'+(S.sym===s?" on":"")+'" data-sym="'+s+'">'+s+'</button>';}).join("");
   var modes=Object.keys(MODES).map(function(k){return'<button class="seg'+(S.mode===k?" on":"")+'" data-mode="'+k+'">'+MODES[k].label+'</button>';}).join("");
   var right=ag?'<div class="scorebox"><div class="lbl">Confluence '+MODES[S.mode].label+'</div><div class="big num" style="color:'+(ag.dir==="LONG"?"var(--up)":ag.dir==="SHORT"?"var(--dn)":"var(--warn)")+'">'+pct(ag.conf)+'</div><div style="margin-top:3px">'+chip(ag.dir,dname(ag.dir))+'</div></div>':'';
-  return'<div><span class="seggrp">'+syms+'</span>'+badge()+'</div>'+
+  return'<div class="hdr"><div class="hsym"><span class="seggrp">'+syms+'</span>'+badge()+'</div>'+
     '<div class="hrow"><div><div class="price">'+usd(S.price,d)+'</div><div class="pair">'+S.sym+'/USDT · BloFin</div></div>'+right+'</div>'+
-    '<div class="modes"><div class="seggrp">'+modes+'</div></div>';
+    '<div class="modes"><div class="seggrp">'+modes+'</div></div></div>';
 }
 function tabsHTML(){
   var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["fib","Fib"],["ew","Waves"],["book","Book"]];
@@ -599,6 +630,10 @@ function nyPattern(o,h,l,c,preH,preL){
   if(lw>=0.5&&c>=l+0.6*rng)shape="hammer shape";else if(uw>=0.5&&c<=l+0.4*rng)shape="shooting-star shape";
   return{key:key,lab:lab,bias:bias,shape:shape};
 }
+function lastSun(y,m){var d=new Date(Date.UTC(y,m+1,0));return Date.UTC(y,m,d.getUTCDate()-d.getUTCDay());}
+function ukOff(ms){var y=new Date(ms).getUTCFullYear();return(ms>=lastSun(y,2)+36e5&&ms<lastSun(y,9)+36e5)?1:0;}
+function euOpenH(dayStart){return 8-ukOff(dayStart+7*36e5);}
+function sgn(x){return x==null?null:x>0.0008?1:x<-0.0008?-1:0;}
 function nyBuild(H){
   var n=H.t.length,i,q,L=H.t.map(nyLocal),days=[];
   for(i=0;i<n;i++){
@@ -610,6 +645,9 @@ function nyBuild(H){
     if(i+1<n&&H.t[i+1]-H.t[i]===NYH&&H.k[i]&&H.k[i+1])r.fh={o:H.o[i],h:Math.max(H.h[i],H.h[i+1]),l:Math.min(H.l[i],H.l[i+1]),c:H.c[i+1]};
     var e=i+13;
     if(e<n&&H.t[e]-H.t[i]===13*NYH){var ok=true,hi=-Infinity,lo=Infinity;for(q=i;q<=e;q++){if(!H.k[q])ok=false;hi=Math.max(hi,H.h[q]);lo=Math.min(lo,H.l[q]);}r.hi=hi;r.lo=lo;if(ok){r.endC=H.c[e];r.done=true;}}
+    var ds=Math.floor(r.t/864e5)*864e5;
+    function drv(t0){var i0=H.idx[t0];if(i0==null||i0+3>=n)return null;for(var z=0;z<4;z++){if(!H.k[i0+z]||H.t[i0+z]-t0!==z*NYH)return null;}return(H.c[i0+3]-H.o[i0])/H.o[i0];}
+    r.asia=drv(ds);r.eu=drv(ds+euOpenH(ds)*36e5);
     days.push(r);
   }
   var byDay={};
@@ -660,6 +698,7 @@ function nyView(){
     out.day={label:new Date(tDay*864e5).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",timeZone:"UTC"}),status:status(T0,"Session in progress"),A:A,B:B,pat:r&&r.pat,
       driftTxt:dr!=null?(dr>=0?"up ":"down ")+Math.abs(dr*100).toFixed(2)+"% before the open":null,prevTxt:prevUp==null?null:(prevUp?"up":"down"),
       P0:r?r.P0:null,H:r?r.preH:null,L:r?r.preL:null,sofar:r&&r.P0?(price-r.P0)/r.P0:null,med:medArr(moves),rng:medArr(rngs),ns:S2.length,T0:T0,live:!!r};
+    out.day.sess=nySessView(D,H,tDay,r,now,price);
   })();
   // ---------- week
   (function(){
@@ -675,6 +714,63 @@ function nyView(){
       P0:r?r.P0:null,H:r?r.wH:null,L:r?r.wL:null,sofar:r&&r.P0?(price-r.P0)/r.P0:null,med:medArr(moves),rng:NaN,ns:S2.length,T0:T0,live:!!r};
   })();
   return out;
+}
+function nySessView(D,H,tDay,rec,now,price){
+  var ds=tDay*864e5,aT=ds,eT=ds+euOpenH(ds)*36e5,nT=nyOpenMs(tDay),n=H.t.length;
+  function drive(t0){
+    if(t0>now)return{state:"upcoming",t:t0};
+    var i0=H.idx[t0];if(i0==null)return{state:"missing",t:t0};
+    var last=Math.min(i0+3,n-1),ret=(H.c[last]-H.o[i0])/H.o[i0],done=(i0+3<n)&&H.k[i0+3];
+    return{state:done?"done":"live",ret:ret,t:t0};
+  }
+  var A=drive(aT),E=drive(eT),N={t:nT,state:"upcoming"};
+  if(nT<=now){if(rec&&rec.fh)N={state:"done",ret:(rec.fh.c-rec.fh.o)/rec.fh.o,t:nT};else N={state:"live",t:nT,ret:rec?(price-rec.P0)/rec.P0:null};}
+  var sa=A.state==="done"?sgn(A.ret):null,se=E.state==="done"?sgn(E.ret):null,sn=N.state==="done"?sgn(N.ret):null;
+  var S2=D.filter(function(x){return x.done;}),fo=function(x){return x.endC>x.P0;},foR=function(x){return x.endC>x.fh.c;};
+  var H2=S2.filter(function(x){return x.asia!=null&&x.eu!=null;}),sA=function(x){return sgn(x.asia);},sE=function(x){return sgn(x.eu);};
+  var est=null,level="";
+  if(sn&&sa&&se){est=nyEst(H2.filter(function(x){return x.fh&&sA(x)&&sE(x)&&sgn((x.fh.c-x.fh.o)/x.fh.o);}),sa+","+se+","+sn,function(x){return sA(x)+","+sE(x)+","+sgn((x.fh.c-x.fh.o)/x.fh.o);},foR);level="all three opens";if(est)est.rem=true;}
+  if(!est&&sa&&se){est=nyEst(H2.filter(function(x){return sA(x)&&sE(x);}),sa+","+se,function(x){return sA(x)+","+sE(x);},fo);level="Asia + Europe";}
+  if(!est&&se){est=nyEst(H2.filter(function(x){return sE(x);}),String(se),function(x){return String(sE(x));},fo);level="Europe only";}
+  if(!est&&sa){est=nyEst(H2.filter(function(x){return sA(x);}),String(sa),function(x){return String(sA(x));},fo);level="Asia only";}
+  var combos=[[1,1],[1,-1],[-1,1],[-1,-1]].map(function(c){
+    var m=H2.filter(function(x){return sA(x)===c[0]&&sE(x)===c[1];}),u=m.filter(fo).length;
+    return{a:c[0],e:c[1],n:m.length,up:m.length?u/m.length:NaN,med:medArr(m.map(function(x){return(x.endC-x.P0)/x.P0;})),cur:sa===c[0]&&se===c[1]};});
+  function follow(pred,sel){var m=H2.filter(sel);if(m.length<6)return null;return{n:m.length,p:m.filter(function(x){return(x.endC>x.P0)===(pred(x)>0);}).length/m.length};}
+  var fA=follow(sA,function(x){return sA(x)!==0;}),fE=follow(sE,function(x){return sE(x)!==0;}),fB=follow(sA,function(x){return sA(x)!==0&&sA(x)===sE(x);});
+  var rv=H2.filter(function(x){return x.fh&&sE(x)&&sgn((x.fh.c-x.fh.o)/x.fh.o);});
+  var revOpen=rv.length>=6?{n:rv.length,p:rv.filter(function(x){return sgn((x.fh.c-x.fh.o)/x.fh.o)!==sE(x);}).length/rv.length}:null;
+  return{A:A,E:E,N:N,sa:sa,se:se,sn:sn,est:est,level:level,combos:combos,fA:fA,fE:fE,fB:fB,revOpen:revOpen,n:H2.length};
+}
+function fmtET(ms){var l=nyLocal(ms),h=Math.floor(l.min/60),m=l.min%60,ap=h>=12?"PM":"AM",hh=h%12||12;return hh+":"+(m<10?"0":"")+m+" "+ap+" ET";}
+function nySessBlock(v,pat){
+  if(!v)return"";
+  var nm={A:"Asia (Tokyo)",E:"Europe (London)",N:"New York"},rows=["A","E","N"].map(function(k){
+    var x=v[k],sg=x.ret!=null?sgn(x.ret):null,mv=x.ret!=null?(x.ret>=0?"+":"")+(x.ret*100).toFixed(2)+"%":"–";
+    var stt=x.state==="upcoming"?'<span class="mut">upcoming</span>':x.state==="missing"?'<span class="mut">no data</span>':sg>0?'<span class="up">▲ bullish</span>':sg<0?'<span class="dn">▼ bearish</span>':'<span class="warn">◆ flat</span>';
+    if(x.state==="live")stt+=' <span class="mut">(forming)</span>';
+    return'<div class="frow"><span><b>'+nm[k]+'</b> <span class="mut" style="font-size:11.5px">'+fmtET(x.t)+(k==="N"?" · 1st hour":" · 1st 2 hours")+'</span></span><span class="num">'+mv+'</span><span>'+stt+'</span></div>';}).join("");
+  var h='<div class="nyb"><div class="row"><b>Asia → Europe → New York</b><span class="lbl">'+v.n+' past days</span></div><div style="margin-top:6px">'+rows+'</div>';
+  var e=v.est,ln=nyLean(e);
+  if(e){
+    var up=ln.dir>0?ln.prob:ln.dir<0?1-ln.prob:e.p,col=ln.dir>0?"var(--up)":ln.dir<0?"var(--dn)":"var(--warn)",dirC=ln.dir>0?"LONG":ln.dir<0?"SHORT":"ESPERAR";
+    var eurDir=v.se||v.sa||0,ctxt="";
+    if(eurDir&&!e.rem){var contP=eurDir>0?e.p:1-e.p;ctxt=' NY continued '+(v.se?"Europe":"Asia")+"'s direction in "+Math.round(contP*100)+'% of these days and corrected in '+Math.round((1-contP)*100)+'%.';}
+    h+='<div class="row" style="margin-top:10px"><span>'+chip(dirC,ln.txt)+'</span><span class="num" style="color:'+col+'">'+Math.round(ln.prob*100)+'%</span></div><div class="pbar"><i style="width:'+Math.round(up*100)+'%"></i></div><div class="row sub"><span>Down '+Math.round((1-up)*100)+'%</span><span>Up '+Math.round(up*100)+'%</span></div>';
+    h+='<div class="sub" style="margin-top:6px">Based on '+v.level+': in '+e.nk+' similar days (of '+e.n+'), '+(e.rem?"the rest of the NY session":"the NY session")+' ended up '+e.uk+' times and down '+(e.nk-e.uk)+'.'+ctxt+(e.nk<5?" Sample too small to lean.":"")+'</div>';
+    var pb=pat&&pat.dir?pat.dir:0;
+    if(ln.dir&&pb){h+='<div class="sub" style="margin-top:4px"><b style="color:'+(ln.dir===pb?"var(--up)":"var(--warn)")+'">'+(ln.dir===pb?"Both reads agree: continuation "+(ln.dir>0?"up":"down")+" is the most likely path for the day.":"The session pattern and the open pattern disagree: lower confidence, wait for confirmation.")+'</b></div>';}
+  }else h+='<p class="msg" style="margin:8px 0 0">Waiting for the Asia and Europe opens to finish (2 hours each) before a pattern can be read.</p>';
+  h+='<div class="lbl" style="margin-top:12px">How NY ended after each Asia + Europe combination</div>'+v.combos.map(function(c){
+    var lab="Asia "+(c.a>0?"▲":"▼")+" · Europe "+(c.e>0?"▲":"▼");
+    return'<div class="frow'+(c.cur?" cur":"")+'"><b style="font-weight:'+(c.cur?700:500)+'">'+lab+(c.cur?" (today)":"")+'</b><span class="num mut">n='+c.n+'</span><span class="num">'+(isFinite(c.up)?"NY up "+Math.round(c.up*100)+"%":"–")+'</span></div>';}).join("");
+  var st=[];
+  if(v.fA)st.push("NY went the same way as Asia in "+Math.round(v.fA.p*100)+"% of days");
+  if(v.fE)st.push("the same way as Europe in "+Math.round(v.fE.p*100)+"%");
+  if(v.fB)st.push("when Asia and Europe agreed, NY followed in "+Math.round(v.fB.p*100)+"% ("+v.fB.n+" days)");
+  if(st.length)h+='<div class="sub" style="margin-top:8px">'+st.join(" · ")+'.</div>';
+  if(v.revOpen)h+='<div class="sub" style="margin-top:3px">NY\'s first hour went against Europe\'s direction in '+Math.round(v.revOpen.p*100)+'% of days ('+v.revOpen.n+' days).</div>';
+  return h+'</div>';
 }
 function nyBlock(title,x,d){
   var main=x.B||x.A,isB=!!x.B,ln=nyLean(main),dirC=ln.dir>0?"LONG":ln.dir<0?"SHORT":"ESPERAR",col=ln.dir>0?"var(--up)":ln.dir<0?"var(--dn)":"var(--warn)";
@@ -698,7 +794,7 @@ function nyCard(){
   var v=nyView();
   if(!v)return'<div class="card"><div class="row"><h2>New York open</h2><span class="lbl">9:30 ET</span></div><p class="msg" style="margin:6px 0 0">'+(S.histErr?"Could not load the candle history ("+S.histErr+").":"Loading candle history…")+'</p></div>';
   var days=S.nyDays.filter(function(r){return r.done;}).length;
-  return'<div class="card"><div class="row"><h2>New York open</h2><span class="lbl">9:30 ET · '+days+' days studied</span></div>'+nyBlock("Day",v.day,d)+nyBlock("Week",v.week,d)+
+  return'<div class="card"><div class="row"><h2>New York open</h2><span class="lbl">9:30 ET · '+days+' days studied</span></div>'+nyBlock("Day",v.day,d)+nySessBlock(v.day.sess,(function(){var m=v.day.B||v.day.A,l=nyLean(m);return{dir:v.day.B?l.dir:0};})())+nyBlock("Week",v.week,d)+
     '<p class="msg" style="margin:10px 0 0;font-size:11.5px">These are historical frequencies of what happened after similar opens, not a forecast. Samples under about 10 are weak, and weekly samples are always small. Use it as context, never as the only reason to trade.</p></div>';
 }
 function loadHist(sym,full){
@@ -1207,7 +1303,7 @@ setInterval(function(){
   busy=true;loadLive(S.sym).then(function(){busy=false;render();}).catch(function(){busy=false;});
 },10000);
 
-window.__MTF={zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
+window.__MTF={nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
 start("BTC");
 })();
 </script>
