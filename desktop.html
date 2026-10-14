@@ -118,6 +118,7 @@
   .foot{font-size:11.5px;color:var(--dim);line-height:1.5}
 .srow{padding:10px 0;border-top:1px solid var(--line)}
   .srow:first-of-type{border-top:0}
+  .srow .bsub{font-size:12px;color:var(--mut);line-height:1.4}
   .fav{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--c);border:1px solid var(--c);border-radius:4px;padding:1px 5px}
   .mrow{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;padding:11px 0;background:none;border:0;border-top:1px solid var(--line);color:var(--fg);font:inherit;font-size:13px;text-align:left;cursor:pointer}
   .f .seggrp{margin-top:0}
@@ -137,8 +138,15 @@
   .xrow.on{background:color-mix(in srgb,var(--acc) 8%,transparent)}
   .xsel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;width:100%;box-sizing:border-box}
   .xsel .seg{padding-inline:2px}
-  @media (max-width:480px){.tab{font-size:10.5px;letter-spacing:-.01em}}
-.frow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:baseline}
+  @media (max-width:480px){.tab{flex:1 1 auto;font-size:10px;letter-spacing:-.02em;padding-inline:0;min-width:0}}
+  .pstrip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+  .pbox{border:1px solid var(--line);border-radius:8px;padding:8px 6px;text-align:center;background:var(--bg);min-width:0}
+  .pbox b{display:block;font-size:11px;color:var(--mut);font-weight:600}
+  .pbox span{display:block;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3}
+  .pbox.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent)}
+  .pbox.on b{color:var(--acc)}
+  .pbox.on span{color:var(--mut)}
+  .frow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:baseline}
   .frow.cur{background:color-mix(in srgb,var(--acc) 12%,transparent);border-radius:6px;padding-inline:6px;margin-inline:-6px}
   .frow.gold b{color:var(--warn)}
 
@@ -404,7 +412,7 @@ function dname(d){return d==="LONG"?"LONG":d==="SHORT"?"SHORT":"WAIT";}
 function stamp(ms){try{return new Date(ms).toLocaleString("en-US",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});}catch(e){return "";}}
 
 /* ===== State ===== */
-var S={itf:null,stale:[],sym:"BTC",mode:"SWING",tab:"resumen",source:"loading",ws:"OFF",price:null,data:{},forming:{},A:{},book:{asks:[],bids:[]},asOf:null,err:"",tF:{},ctx:{},loadedAt:0,long:null,longErr:"",ftf:"1H",etf:"1W",hist:null,nyDays:null,histBars:null,histAt:0,histErr:"",emaRaw:{},emaAt:0,emaErr:"",xtf:"4H"};
+var S={itf:null,stale:[],sym:"BTC",mode:"SWING",tab:"resumen",source:"loading",ws:"OFF",price:null,data:{},forming:{},A:{},book:{asks:[],bids:[]},asOf:null,err:"",tF:{},ctx:{},loadedAt:0,long:null,longErr:"",ftf:"1H",etf:"1W",hist:null,nyDays:null,histBars:null,histAt:0,histErr:"",emaRaw:{},emaAt:0,emaErr:"",xtf:"4H",po3W:null,po3Raw:{},po3At:0,po3Err:""};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
 S.mode=LS.get("mtf.mode","SWING");if(!MODES[S.mode])S.mode="SWING";
 
@@ -543,10 +551,10 @@ var pending=null;
 function schedule(){if(pending)return;pending=setTimeout(function(){pending=null;if(S.source==="live")recompute();render();},700);}
 
 function start(sym){
-  S.sym=sym;S.long=null;S.longErr="";S.hist=null;S.nyDays=null;S.histBars=null;S.histAt=0;S.histErr="";S.emaRaw={};S.emaAt=0;S.emaErr="";S.source="loading";S.book={asks:[],bids:[]};S.err="";stopWS();
+  S.sym=sym;S.long=null;S.longErr="";S.hist=null;S.nyDays=null;S.histBars=null;S.histAt=0;S.histErr="";S.emaRaw={};S.emaAt=0;S.emaErr="";S.po3W=null;S.po3Raw={};S.po3At=0;S.po3Err="";S.source="loading";S.book={asks:[],bids:[]};S.err="";stopWS();
   if(sym==="BTC"){useSnapshot();S.source="loading";}else{S.data={};S.forming={};S.A={};S.price=null;}
   render();
-  loadLive(sym).then(function(){connectWS(sym);render();loadLong(sym).then(function(){render();});loadEma(sym,true).then(function(){render();});}).catch(function(e){
+  loadLive(sym).then(function(){connectWS(sym);render();loadHist(sym,true).then(function(){render();});loadPo3W(sym,true).then(function(){render();});loadLong(sym).then(function(){render();});loadEma(sym,true).then(function(){render();});}).catch(function(e){
     S.err=(e&&e.message)?e.message:"no connection";
     if(sym==="BTC"){useSnapshot();}else{S.source="none";S.data={};S.forming={};S.A={};S.price=null;}
     render();
@@ -576,7 +584,7 @@ function head(ag){
     '<div class="modes"><div class="seggrp">'+modes+'</div></div></div>';
 }
 function tabsHTML(){
-  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["fib","Fib"],["ew","Waves"],["ema","EMAs"],["book","Book"]];
+  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["fib","Fib"],["ew","Waves"],["ema","EMAs"],["po3","PO3"],["book","Book"]];
   return'<div class="tabs">'+T.map(function(t){return'<button class="tab'+(S.tab===t[0]?" on":"")+'" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
 }
 
@@ -805,7 +813,7 @@ function nyCard(){
 function loadHist(sym,full){
   var bars=S.histBars||{},pages=0,after=null,maxP=full?5:1;
   function page(){
-    var url=REST+"?instId="+sym+"-USDT&bar=30m&limit=1440"+(after?"&after="+after:"");
+    var url=REST+"?instId="+sym+"-USDT&bar=30m&limit="+(full?1440:40)+(after?"&after="+after:"");
     return timeoutFetch(url,10000).then(function(j){
       if(!j||j.code!=="0"||!j.data||!j.data.length)return;
       var oldest=Infinity,added=0;
@@ -818,7 +826,7 @@ function loadHist(sym,full){
     if(ts.length<200){S.histErr="not enough data";return;}
     var H={t:[],o:[],h:[],l:[],c:[],k:[],idx:{}};
     ts.forEach(function(t,i){var b=bars[t];H.t.push(t);H.o.push(b.o);H.h.push(b.h);H.l.push(b.l);H.c.push(b.c);H.k.push(b.k);H.idx[t]=i;});
-    S.histBars=bars;S.hist=H;S.nyDays=nyBuild(H);S.histAt=Date.now();S.histErr="";
+    S.histBars=bars;S.hist=H;S.histAt=Date.now();S.histErr="";
   }).catch(function(e){S.histErr=(e&&e.message)||"no connection";});
 }
 
@@ -1409,6 +1417,456 @@ function emaTab(){
   return over+zones+selr+hero+chart+ecard+hist+note;
 }
 
+/* ===== Power of 3 (accumulation, manipulation, distribution): daily on 30m candles, weekly on 4H candles. All times New York (ET). ===== */
+var PO3H=36e5;
+var PO3_CFG={
+  day:{key:"day",name:"Daily",bar:"30m",barMs:18e5,a0:-4*PO3H,a1:2*PO3H,m1:11*PO3H,r1:12*PO3H,end:17*PO3H,fail:4,minA:9,
+    aName:"Asia range",aTxt:"20:00 – 02:00 ET",mTxt:"02:00 – 11:00 ET",dTxt:"until 17:00 ET",hi:"Asia high",lo:"Asia low",unit:"30m"},
+  week:{key:"week",name:"Weekly",bar:"4H",barMs:144e5,a0:0,a1:24*PO3H,m1:60*PO3H,r1:72*PO3H,end:113*PO3H,fail:3,minA:5,
+    aName:"Monday range",aTxt:"Mon 00:00 – 24:00 ET",mTxt:"Tue 00:00 – Wed 12:00 ET",dTxt:"until Fri 17:00 ET",hi:"Monday high",lo:"Monday low",unit:"4H"}
+};
+function etLoc(ms){return ms+nyOff(ms)*6e4;}
+function etUtc(loc){var u4=loc+4*PO3H;return nyOff(u4)===-240?u4:loc+5*PO3H;}
+function po3Anchor(cfg,ms){
+  var loc=etLoc(ms);
+  if(cfg.key==="day")return Math.floor((loc+4*PO3H)/864e5)*864e5;
+  var dl=Math.floor(loc/864e5)*864e5,dow=new Date(dl).getUTCDay();
+  return dl-((dow+6)%7)*864e5;
+}
+function po3Lb(a,x){var lo=0,hi=a.length;while(lo<hi){var m=(lo+hi)>>1;if(a[m]<x)lo=m+1;else hi=m;}return lo;}
+function po3Atr(H,L,C,i,n){var s=0,k=0,j;for(j=Math.max(1,i-n+1);j<=i;j++){s+=Math.max(H[j]-L[j],Math.abs(H[j]-C[j-1]),Math.abs(L[j]-C[j-1]));k++;}return k?s/k:0;}
+
+/* One period (a day or a week). Phases:
+   A  accumulation: range high and low of the accumulation window
+   M  manipulation: first move beyond the range inside the manipulation window (a sweep), then a candle closing back inside (reclaim)
+   D  distribution: the trade fades the sweep: entry at the reclaim close, stop beyond the sweep extreme,
+      TP1 range midpoint, TP2 the opposite side of the range, TP3 half a range beyond it.
+   If no candle closes back inside within cfg.fail candles, the move is a real breakout and there is no PO3 trade. */
+function po3Calc(B,cfg,aLoc,now,price){
+  var hb=cfg.barMs/2,t0=etUtc(aLoc+cfg.a0),t1=etUtc(aLoc+cfg.a1),tm=etUtc(aLoc+cfg.m1),tr=etUtc(aLoc+cfg.r1),te=etUtc(aLoc+cfg.end),to=etUtc(aLoc);
+  var n=B.t.length;if(now<t0||!n)return null;
+  var i0=po3Lb(B.t,t0-hb);if(i0>=n)return null;
+  var iE=Math.min(n,po3Lb(B.t,te-hb)),i1=Math.min(po3Lb(B.t,t1-hb),iE);
+  var T=B.t.slice(i0,iE),O=B.o.slice(i0,iE),H=B.h.slice(i0,iE),L=B.l.slice(i0,iE),C=B.c.slice(i0,iE);
+  var nReal=T.length,k1=i1-i0,over=now>=te,live=false;
+  if(price!=null&&isFinite(price)&&!over){T.push(now-hb);O.push(price);H.push(price);L.push(price);C.push(price);live=true;}
+  var x={cfg:cfg,t0:t0,t1:t1,tm:tm,tr:tr,te:te,to:to,over:over,nReal:nReal,live:live,st:0,side:0,s:-1,r:-1,ext:NaN,tent:false,T:T,O:O,H:H,L:L,C:C,bad:false};
+  if(k1<1){x.bad=true;return x;}
+  var partial=now<t1;x.partial=partial;
+  if(!partial&&k1<cfg.minA){x.bad=true;return x;}
+  var AH=-Infinity,AL=Infinity,j;
+  for(j=0;j<k1;j++){if(H[j]>AH)AH=H[j];if(L[j]<AL)AL=L[j];}
+  if(partial&&live){if(price>AH)AH=price;if(price<AL)AL=price;}
+  x.AH=AH;x.AL=AL;x.R=AH-AL;x.mid=(AH+AL)/2;x.k1=k1;
+  var oi=po3Lb(T,to-hb);x.open=oi<T.length?O[oi]:NaN;
+  if(partial){x.state="ACC";return x;}
+  var st=0,side=0,s=-1,ext=NaN,r=-1,i,N=T.length;
+  for(i=k1;i<N;i++){
+    var mid=T[i]+hb;if(mid>=tr)break;
+    var h=H[i],l=L[i],c=C[i];
+    if(st===0){
+      if(mid>=tm)break;
+      var up=h>AH,dn=l<AL;
+      if(up&&dn)continue;
+      if(up){st=1;side=1;s=i;ext=h;}else if(dn){st=1;side=-1;s=i;ext=l;}
+      if(st===1&&(side>0?c<=AH:c>=AL)){st=2;r=i;}
+    }else if(st===1){
+      if(side>0){if(h>ext)ext=h;if(c<=AH){st=2;r=i;}}else{if(l<ext)ext=l;if(c>=AL){st=2;r=i;}}
+      if(st===1&&Math.min(i,nReal-1)-s>=cfg.fail)st=3;
+    }else break;
+  }
+  if(st===1&&now>=tr)st=3;
+  x.st=st;x.side=side;x.s=s;x.r=r;x.ext=ext;
+  var lastEnd=nReal?T[nReal-1]+cfg.barMs:0;
+  if(st===0)x.state=now>=tm?"NOSWEEP":"WATCH";
+  else if(st===1)x.state="SWEPT";
+  else if(st===3)x.state="BREAKOUT";
+  else x.state="ACTIVE";
+  if(st>=1&&s>=0){x.sweepT=T[s];}
+  if(st===2){
+    x.tent=(r>=nReal)||(r===nReal-1&&lastEnd>now);
+    var atr=po3Atr(H,L,C,Math.max(1,s),14),buf=Math.max(0.1*x.R,0.3*atr),d=-side;
+    x.atr=atr;x.buf=buf;x.dir=d;
+    x.entry=C[r];x.stop=side>0?ext+buf:ext-buf;
+    x.tp1=x.mid;x.tp2=side>0?AL:AH;x.tp3=side>0?AL-0.5*x.R:AH+0.5*x.R;
+    x.late=side>0?x.entry<=x.tp1:x.entry>=x.tp1;
+    var risk=Math.abs(x.stop-x.entry);
+    x.rr1=risk>0?Math.abs(x.entry-x.tp1)/risk:0;x.rr2=risk>0?Math.abs(x.entry-x.tp2)/risk:0;x.rr3=risk>0?Math.abs(x.entry-x.tp3)/risk:0;
+    x.alt=side>0?AH:AL;x.altRr1=Math.abs(x.alt-x.stop)>0?Math.abs(x.alt-x.tp1)/Math.abs(x.stop-x.alt):0;
+    /* what happened after the entry (stop checked first when a candle touches both) */
+    var tp1=false,tp2=false,stp=false,ri=-1;
+    for(i=r+1;i<N;i++){
+      if(T[i]+hb>=te)break;
+      var hh=H[i],ll=L[i];
+      var hS=d>0?ll<=x.stop:hh>=x.stop,h1=d>0?hh>=x.tp1:ll<=x.tp1,h2=d>0?hh>=x.tp2:ll<=x.tp2;
+      if(!tp1){
+        if(hS){stp=true;ri=i;break;}
+        if(h1){tp1=true;ri=i;if(h2)tp2=true;}
+      }else if(!tp2){
+        if(h2){tp2=true;ri=i;}else if(hS)break;
+      }
+      if(tp2)break;
+    }
+    x.res=stp?"STOP":tp2?"TP2":tp1?"TP1":(over?"NONE":"OPEN");x.resI=ri;
+    if(x.res!=="OPEN"&&x.res!=="NONE")x.state="DONE";
+    else if(x.res==="NONE")x.state="DONE";
+    var px=live?price:C[N-1];
+    x.px=px;
+    var prog=d>0?(px-x.entry)/(x.tp1-x.entry):(x.entry-px)/(x.entry-x.tp1);
+    x.prog=isFinite(prog)?prog:0;
+  }
+  return x;
+}
+function po3Stats(B,cfg,now){
+  var q={long:{n:0,tp1:0,tp2:0,stop:0,none:0,rr:0},short:{n:0,tp1:0,tp2:0,stop:0,none:0,rr:0},periods:0,sweeps:0,breakout:0,nosweep:0,late:0};
+  if(!B||B.t.length<50)return q;
+  var step=cfg.key==="day"?864e5:7*864e5,a=po3Anchor(cfg,B.t[0])+step,aCur=po3Anchor(cfg,now);
+  for(;a<aCur;a+=step){
+    var x=po3Calc(B,cfg,a,now,null);
+    if(!x||x.bad||x.partial)continue;
+    q.periods++;
+    if(x.st===0)q.nosweep++;
+    else if(x.st===3)q.breakout++;
+    else if(x.st===2){
+      q.sweeps++;
+      if(x.late){q.late++;continue;}
+      var o=x.dir>0?q.long:q.short;o.n++;o.rr+=x.rr1;
+      if(x.res==="STOP")o.stop++;else if(x.res==="TP2"){o.tp1++;o.tp2++;}else if(x.res==="TP1")o.tp1++;else o.none++;
+    }
+  }
+  return q;
+}
+/* build bar arrays for the two versions */
+function po3Bars(key){
+  if(key==="day")return S.hist||null;
+  return S.po3W||null;
+}
+function loadPo3W(sym,full){
+  var m=S.po3Raw||(S.po3Raw={}),pages=0,after=null;
+  function page(){
+    var url=REST+"?instId="+sym+"-USDT&bar=4H&limit="+(full?1440:12)+(after?"&after="+after:"");
+    return timeoutFetch(url,12000).then(function(j){
+      if(sym!==S.sym)return;
+      if(!j||j.code!=="0"||!j.data||!j.data.length)return;
+      var oldest=Infinity,added=0;
+      j.data.forEach(function(r){var t=+r[0];if(!m[t])added++;m[t]={t:t,o:+r[1],h:+r[2],l:+r[3],c:+r[4]};if(t<oldest)oldest=t;});
+      pages++;if(full&&added>0&&pages<3&&j.data.length>=1000){after=oldest;return page();}
+    });
+  }
+  return page().then(function(){
+    if(sym!==S.sym)return;
+    var ts=Object.keys(m).map(Number).sort(function(a,b){return a-b;});
+    if(ts.length<60){S.po3Err="not enough data";return;}
+    var W={t:[],o:[],h:[],l:[],c:[]};
+    ts.forEach(function(t){var b=m[t];W.t.push(t);W.o.push(b.o);W.h.push(b.h);W.l.push(b.l);W.c.push(b.c);});
+    S.po3W=W;S.po3At=Date.now();S.po3Err="";
+  }).catch(function(e){S.po3Err=(e&&e.message)||"no connection";});
+}
+function po3Study(key){
+  var cfg=PO3_CFG[key],B=po3Bars(key);
+  if(!B||B.t.length<60)return null;
+  var now=Date.now(),price=(S.price!=null&&isFinite(S.price))?S.price:null,aLoc=po3Anchor(cfg,now);
+  var cur=po3Calc(B,cfg,aLoc,now,price);
+  if(!cur||cur.bad)return{cfg:cfg,B:B,cur:cur,stats:po3Stats(B,cfg,now),aLoc:aLoc,now:now};
+  return{cfg:cfg,B:B,cur:cur,stats:po3Stats(B,cfg,now),aLoc:aLoc,now:now};
+}
+
+/* ---------- display ---------- */
+function po3Align(key){
+  var tfs=key==="day"?["4H","1D"]:["1D","1W"],v=0,k=0;
+  tfs.forEach(function(t){var a=S.A[t];if(a&&isFinite(a.bull)){v+=a.bull;k++;}});
+  if(!k)return null;v/=k;
+  return{bull:v,lab:tfs.join("/"),dir:v>=55?1:v<=45?-1:0};
+}
+function po3Clock(ms){
+  if(ms<=0)return"now";
+  var m=Math.round(ms/6e4),h=Math.floor(m/60),d=Math.floor(h/24);
+  if(d>=2)return d+"d "+(h%24)+"h";
+  return h>0?h+"h "+(m%60)+"m":m+"m";
+}
+function po3Head(x,cfg){
+  var d=dec(S.sym),u=function(v){return usd(v,d);};
+  switch(x.state){
+    case"ACC":return{t:"Accumulating",s:cfg.aName+" is forming, "+u(x.AL)+" – "+u(x.AH)+". No trade yet: wait for a sweep of either side.",col:"var(--warn)",dir:"ESPERAR"};
+    case"WATCH":return{t:"Waiting for the sweep",s:"The "+cfg.aName+" is set ("+u(x.AL)+" – "+u(x.AH)+"). A move beyond either side followed by a "+cfg.unit+" close back inside gives the entry.",col:"var(--warn)",dir:"ESPERAR"};
+    case"SWEPT":return{t:(x.side>0?"Highs swept":"Lows swept")+", waiting for the reclaim",s:"Price went "+(x.side>0?"above "+u(x.AH):"below "+u(x.AL))+". A "+cfg.unit+" close back "+(x.side>0?"below":"above")+" it triggers the "+(x.side>0?"SHORT":"LONG")+". If it keeps closing outside it is a real breakout instead.",col:"var(--warn)",dir:"ESPERAR"};
+    case"BREAKOUT":return{t:"Breakout, not a PO3 fade",s:"Price stayed outside the range after the sweep. There is no fade trade. Only trade the breakout if it retests the range edge and holds.",col:"var(--dim)",dir:"ESPERAR"};
+    case"NOSWEEP":return{t:"No sweep this period",s:"The manipulation window ended without a sweep of the "+cfg.aName+". PO3 is not in play.",col:"var(--dim)",dir:"ESPERAR"};
+    case"ACTIVE":case"DONE":{
+      var long=x.dir>0,col=long?"var(--up)":"var(--dn)",nm=long?"LONG":"SHORT";
+      if(x.late)return{t:"Reclaimed, but the entry is late",s:"The "+(x.side>0?"highs":"lows")+" were swept and reclaimed, but price already passed the midpoint. No clean "+nm+" entry. Wait for a retest of "+u(x.alt)+".",col:"var(--warn)",dir:"ESPERAR"};
+      if(x.res==="STOP")return{t:nm+" stopped out",s:"The sweep reclaim failed: price hit "+u(x.stop)+" before the midpoint.",col:"var(--dn)",dir:"ESPERAR"};
+      if(x.res==="TP2")return{t:nm+" played out, TP2 reached",s:"Price traveled the full range to "+u(x.tp2)+".",col:col,dir:x.dir>0?"LONG":"SHORT"};
+      if(x.res==="TP1")return{t:nm+" TP1 reached",s:"Price reached the midpoint "+u(x.tp1)+". Next target "+u(x.tp2)+".",col:col,dir:x.dir>0?"LONG":"SHORT"};
+      if(x.res==="NONE")return{t:nm+" setup expired",s:"Neither the stop nor the midpoint was reached before the session ended.",col:"var(--dim)",dir:"ESPERAR"};
+      var lt=x.prog>=0.35;
+      return{t:nm+(x.tent?" signal forming":" setup active"),s:(x.side>0?"Highs":"Lows")+" swept to "+u(x.ext)+" and reclaimed"+(x.tent?" (the candle is still open, so it can fail)":"")+". "+(lt?"Price already moved "+Math.round(x.prog*100)+"% of the way to the midpoint, so the entry is late; wait for a pullback.":"Entry zone is open."),col:col,dir:long?"LONG":"SHORT"};
+    }
+  }
+  return{t:"",s:"",col:"var(--dim)",dir:"ESPERAR"};
+}
+function po3Scen(x,cfg,d){
+  var pd=dec(S.sym),u=function(v){return usd(v,pd);},long=d>0,nm=long?"LONG":"SHORT",col=long?"var(--up)":"var(--dn)";
+  var sideNeeded=-d,lvl=long?x.AL:x.AH,far=long?x.AH:x.AL,sw=long?cfg.lo:cfg.hi;
+  var status,note,rows=[],proj=false;
+  var projStop=long?lvl-Math.max(0.2*x.R,0.5*(x.atr||0)):lvl+Math.max(0.2*x.R,0.5*(x.atr||0));
+  var trig="Trigger: price sweeps "+(long?"below the ":"above the ")+sw+" ("+u(lvl)+") and a "+cfg.unit+" candle closes back "+(long?"above":"below")+" it.";
+  function lv(lab,p,rr,cls){return'<div class="frow"><b style="font-weight:500">'+lab+'</b><span class="num">'+u(p)+'</span><span class="num mut">'+(rr||"")+'</span></div>';}
+  if(x.st===2&&x.side===sideNeeded&&!x.late){
+    var done=x.res==="STOP"?"STOPPED":x.res==="TP2"?"TP2 HIT":x.res==="TP1"?"TP1 HIT":x.res==="NONE"?"EXPIRED":x.prog>=0.35?"LATE":x.tent?"FORMING":"ENTRY";
+    status=done;
+    var al=po3Align(cfg.key),alTxt="";
+    if(al){alTxt=al.dir===0?"Higher timeframes ("+al.lab+") are neutral.":(al.dir===d?"With the higher-timeframe trend ("+al.lab+" bias "+Math.round(al.bull)+").":"Against the higher-timeframe trend ("+al.lab+" bias "+Math.round(al.bull)+"), so be selective.");}
+    var grade=(!al||al.dir===-d||x.rr1<1)?"C":(al.dir===d&&x.rr1>=1.5&&!x.tent)?"A":"B";
+    x.grade=grade;
+    note=(x.tent?"The reclaim candle is still open. Confirm on the close. ":"")+(x.rr1<1?"TP1 is close to this entry (R:R "+x.rr1.toFixed(1)+"), so a retest of the level would give a better entry. ":"")+alTxt;
+    rows=[lv("Entry (reclaim close)",x.entry,""),lv("Better entry · retest of the level",x.alt,"R:R "+x.altRr1.toFixed(1)),lv("Stop (beyond the sweep)",x.stop,""),lv("TP1 · range midpoint",x.tp1,"R:R "+x.rr1.toFixed(1)),lv("TP2 · opposite side",x.tp2,"R:R "+x.rr2.toFixed(1)),lv("TP3 · extension",x.tp3,"R:R "+x.rr3.toFixed(1))];
+    return'<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+nm+'</b> '+chip(nm,status)+' <span class="gr" style="--c:'+(grade==="A"?"var(--up)":grade==="B"?"var(--warn)":"var(--dim)")+'">'+grade+'</span></span><span class="num mut">sweep '+(x.side>0?"high":"low")+' '+u(x.ext)+'</span></div>'+(note?'<div class="bsub" style="margin:6px 0 4px">'+note+'</div>':'')+rows.join("")+'</div>';
+  }
+  if(x.st===2&&x.side===sideNeeded&&x.late){
+    return'<div class="srow" style="--c:var(--dim)"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","LATE")+'</span><span class="num mut">reclaimed</span></div><div class="bsub">The '+(long?"lows":"highs")+' were swept and reclaimed but price already passed the midpoint. Only a pullback to '+u(x.alt)+' would give a clean entry.</div></div>';
+  }
+  if(x.st===1&&x.side===sideNeeded){
+    var stop1=long?x.ext-Math.max(0.1*x.R,0.5*(x.atr||0)):x.ext+Math.max(0.1*x.R,0.5*(x.atr||0));
+    return'<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","SWEPT, WAIT")+'</span><span class="num mut">extreme '+u(x.ext)+'</span></div><div class="bsub" style="margin:6px 0 4px">Price is '+(long?"below":"above")+' '+u(lvl)+'. A '+cfg.unit+' close back '+(long?"above":"below")+' it triggers the entry; the stop would go beyond '+u(x.ext)+'.</div>'+lv("Entry on reclaim",lvl,"")+lv("Stop (beyond the sweep)",stop1,"")+lv("TP1 · range midpoint",x.mid,"")+lv("TP2 · opposite side",far,"")+'</div>';
+  }
+  if(x.st===2||x.st===1){
+    return'<div class="srow" style="--c:var(--dim)"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","OFF")+'</span></div><div class="bsub">The other side was swept first, so this scenario is not in play for this '+(cfg.key==="day"?"day":"week")+'.</div></div>';
+  }
+  if(x.st===3){
+    return'<div class="srow" style="--c:var(--dim)"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","OFF")+'</span></div><div class="bsub">Price broke out and stayed outside the range, so there is no PO3 fade this '+(cfg.key==="day"?"day":"week")+'.</div></div>';
+  }
+  if(x.state==="NOSWEEP"){
+    return'<div class="srow" style="--c:var(--dim)"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","NO SWEEP")+'</span></div><div class="bsub">The window passed without a sweep of the '+(long?cfg.lo:cfg.hi)+'.</div></div>';
+  }
+  /* pending: projected levels */
+  var rrp1=Math.abs(x.mid-lvl)/Math.abs(projStop-lvl),rrp2=Math.abs(far-lvl)/Math.abs(projStop-lvl);
+  return'<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+nm+'</b> '+chip("ESPERAR","PENDING")+'</span><span class="num mut">projected</span></div><div class="bsub" style="margin:6px 0 4px">'+trig+'</div>'+
+    lv("Entry (at the level)",lvl,"")+lv("Stop (beyond the sweep)",projStop,"")+lv("TP1 · range midpoint",x.mid,"R:R "+rrp1.toFixed(1))+lv("TP2 · opposite side",far,"R:R "+rrp2.toFixed(1))+
+    '<div class="bsub" style="margin-top:4px">Levels are projected from the current range. The real stop sits beyond the actual sweep extreme.</div></div>';
+}
+function po3Chart(R,x){
+  var cfg=x.cfg,W=360,H=250,pl=6,pr=84,pt=16,pb=16,d=dec(S.sym);
+  var t0=x.t0,t1=x.te+cfg.barMs*0.5,B=R.B;
+  function X(t){return pl+(W-pl-pr)*(t-t0)/(t1-t0);}
+  var i0=po3Lb(B.t,t0-cfg.barMs/2),i1=po3Lb(B.t,x.te+cfg.barMs),idx=[],i,lo=Infinity,hi=-Infinity;
+  for(i=i0;i<i1;i++)idx.push(i);
+  var cand=[];
+  idx.forEach(function(k){if(B.h[k]>hi)hi=B.h[k];if(B.l[k]<lo)lo=B.l[k];});
+  if(x.live){var lp=x.C[x.C.length-1];if(lp>hi)hi=lp;if(lp<lo)lo=lp;}
+  var lv=[x.AH,x.AL];if(x.st===2&&!x.late){lv.push(x.stop,x.tp1,x.tp2);}
+  lv.forEach(function(v){if(isFinite(v)){if(v>hi)hi=v;if(v<lo)lo=v;}});
+  var pad=(hi-lo)*0.06||1;lo-=pad;hi+=pad;
+  function Y(v){return pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));}
+  var bw=Math.max(1.2,(W-pl-pr)*cfg.barMs/(t1-t0)*0.7),g="";
+  /* phase bands */
+  function band(a,b,col,lab){var xa=X(a),xb=X(Math.min(b,t1));return'<rect x="'+xa.toFixed(1)+'" y="'+pt+'" width="'+Math.max(0,xb-xa).toFixed(1)+'" height="'+(H-pt-pb)+'" fill="'+col+'" opacity=".09"/><text class="t" x="'+(xa+3).toFixed(1)+'" y="'+(pt-5)+'" style="fill:'+col+'">'+lab+'</text>';}
+  g+=band(x.t0,x.t1,"#00ffcc","ACCUMULATION")+band(x.t1,x.tm,"#f0b429","MANIPULATION")+band(x.tm,x.te,"#7692ae","DISTRIBUTION");
+  /* candles */
+  idx.forEach(function(k){
+    var cx=X(B.t[k]+cfg.barMs/2),up=B.c[k]>=B.o[k],col=up?"var(--up)":"var(--dn)",yo=Y(B.o[k]),yc=Y(B.c[k]);
+    g+='<line x1="'+cx.toFixed(1)+'" x2="'+cx.toFixed(1)+'" y1="'+Y(B.h[k]).toFixed(1)+'" y2="'+Y(B.l[k]).toFixed(1)+'" stroke="'+col+'" stroke-width="1"/><rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Math.min(yo,yc).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1,Math.abs(yc-yo)).toFixed(1)+'" fill="'+col+'"/>';
+  });
+  /* levels */
+  var labs=[];
+  function line(v,col,dash,txt,bold){if(!isFinite(v))return;g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="'+col+'" stroke-width="1.1" stroke-dasharray="'+dash+'" opacity=".95"/>';labs.push({y:Y(v),t:txt+" "+fmtN(v,v),col:col,bold:bold});}
+  line(x.AH,"var(--fg)","5 3",cfg.key==="day"?"Asia H":"Mon H");
+  line(x.AL,"var(--fg)","5 3",cfg.key==="day"?"Asia L":"Mon L");
+  line(x.mid,"var(--mut)","2 3","Mid");
+  if(x.st===2&&!x.late){
+    var ec=x.dir>0?"var(--up)":"var(--dn)";
+    line(x.entry,ec,"0","Entry",1);line(x.stop,"var(--dn)","3 2","Stop");line(x.tp1,"var(--up)","3 2","TP1");line(x.tp2,"var(--up)","3 2","TP2");
+  }
+  if(x.live&&isFinite(x.C[x.C.length-1])){labs.push({y:Y(x.C[x.C.length-1]),t:fmtN(x.C[x.C.length-1],x.C[x.C.length-1]),col:"var(--acc)",bold:1});}
+  /* markers: sweep and reclaim */
+  function tIdx(j){return x.T[j]+cfg.barMs/2;}
+  if(x.s>=0){var sx=X(tIdx(x.s)),sy=x.side>0?Y(x.H[x.s])-7:Y(x.L[x.s])+7;g+='<text class="t tb" x="'+sx.toFixed(1)+'" y="'+(sy+(x.side>0?0:6)).toFixed(1)+'" text-anchor="middle" style="fill:var(--warn)">'+(x.side>0?"▼ sweep":"▲ sweep")+'</text>';}
+  if(x.r>=0){var rx=X(tIdx(x.r)),ry=Y(x.C[x.r]);g+='<circle cx="'+rx.toFixed(1)+'" cy="'+ry.toFixed(1)+'" r="4" fill="none" stroke="var(--acc)" stroke-width="1.6"/>';}
+  /* now line */
+  if(x.live||!x.over){var nx=X(Math.min(R.now,t1));g+='<line x1="'+nx.toFixed(1)+'" x2="'+nx.toFixed(1)+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--acc)" stroke-width="1" stroke-dasharray="1 3" opacity=".7"/>';}
+  labs.sort(function(a,b){return a.y-b.y;});
+  for(i=1;i<labs.length;i++)if(labs[i].y-labs[i-1].y<11)labs[i].y=labs[i-1].y+11;
+  var tx=labs.map(function(q){return'<text class="t'+(q.bold?" tb":"")+'" x="'+(W-pr+4)+'" y="'+(q.y+3).toFixed(1)+'" style="fill:'+q.col+'">'+q.t+'</text>';}).join("");
+  return'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+cfg.name+' Power of 3 chart">'+g+tx+'</svg>';
+}
+function po3Stat(R){
+  var q=R.stats,cfg=R.cfg;
+  function ln(nm,o){var rs=o.n-o.none;return'<div class="frow"><b style="font-weight:500">'+nm+'</b><span class="num">'+(o.n?Math.round(100*o.tp1/o.n)+"% reach TP1":"no sample")+'</span><span class="num mut">n='+o.n+'</span></div>'+
+    (o.n?'<div style="padding:2px 0 8px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--mut);line-height:1.4">TP2 '+Math.round(100*o.tp2/o.n)+'% · stopped first '+Math.round(100*o.stop/o.n)+'% · neither '+Math.round(100*o.none/o.n)+'% · average R:R to TP1 '+(o.rr/o.n).toFixed(1)+'</div>':'');}
+  var per=q.periods||1,u=cfg.key==="day"?"days":"weeks";
+  return'<div class="card"><div class="row" style="margin-bottom:4px"><h2>'+cfg.name+' PO3 track record</h2><span class="lbl">'+q.periods+' '+u+' tested · '+cfg.bar+' candles</span></div>'+
+    ln("Long (sweep of the low)",q.long)+ln("Short (sweep of the high)",q.short)+
+    '<div class="sub" style="margin-top:8px">Of '+q.periods+' '+u+': a sweep and reclaim happened in '+Math.round(100*q.sweeps/per)+'%, a breakout without reclaim in '+Math.round(100*q.breakout/per)+'%, and no sweep in '+Math.round(100*q.nosweep/per)+'%.</div>'+
+    '<p class="msg" style="margin:8px 0 0;font-size:11.5px">Entries are simulated at the reclaim close, with the stop beyond the sweep extreme. If one candle touches both the stop and a target, the stop counts first. Samples under about 20 are weak, and there are no fees or slippage in these numbers.</p></div>';
+}
+function po3Section(R){
+  var cfg=R.cfg,x=R.cur,d=dec(S.sym);
+  if(!x||x.bad){
+    return'<div class="card"><div class="row"><h2>'+cfg.name+' PO3</h2><span class="lbl">'+cfg.aTxt+'</span></div><p class="msg" style="margin:6px 0 0">'+(x&&x.bad?"Not enough candles inside the accumulation window yet.":"Waiting for candles from the start of this "+(cfg.key==="day"?"day":"week")+".")+'</p></div>';
+  }
+  var hd=po3Head(x,cfg),ph=x.over||x.st===2?2:x.state==="ACC"?0:1,now=R.now;
+  var names=[["1 Accumulation",cfg.aTxt],["2 Manipulation",cfg.mTxt],["3 Distribution",cfg.dTxt]];
+  var clock=x.state==="ACC"?"Manipulation window opens in "+po3Clock(x.t1-now):x.state==="WATCH"?"Sweep window closes in "+po3Clock(x.tm-now):(!x.over&&x.st===2?"Session ends in "+po3Clock(x.te-now):x.over?"Session over. "+(cfg.key==="day"?"Next accumulation starts 20:00 ET.":"Next accumulation starts Monday 00:00 ET."):"");
+  var strip='<div class="pstrip">'+names.map(function(n,i){return'<div class="pbox'+(i===ph?" on":"")+'"><b>'+n[0]+'</b><span>'+n[1]+'</span></div>';}).join("")+'</div>';
+  var hero='<div class="card hero" style="--c:'+hd.col+'"><div class="row"><h2>'+cfg.name+' PO3 · '+hd.t+'</h2><span class="lbl">'+(cfg.key==="day"?"New York day":"New York week")+'</span></div>'+strip+
+    '<p class="msg" style="margin:10px 0 0;color:var(--fg)">'+hd.s+'</p>'+
+    '<div class="quad">'+cell(cfg.hi,usd(x.AH,d),x.partial?"forming":"accumulation high")+cell(cfg.lo,usd(x.AL,d),x.partial?"forming":"accumulation low")+cell(cfg.key==="day"?"Day open (00:00 ET)":"Week open (Mon 00:00 ET)",isFinite(x.open)?usd(x.open,d):"—",isFinite(x.open)&&R.cur.live?(x.C[x.C.length-1]>=x.open?"price is above the open":"price is below the open"):"")+cell("Range size",usd(x.R,d),Math.round(x.R/(x.mid||1)*10000)/100+"% of price")+'</div>'+
+    (clock?'<div class="sub" style="margin-top:8px">'+clock+'</div>':'')+'</div>';
+  var scen='<div class="card"><div class="row" style="margin-bottom:4px"><h2>'+cfg.name+' entries</h2><span class="lbl">fade the sweep</span></div>'+po3Scen(x,cfg,1)+po3Scen(x,cfg,-1)+'</div>';
+  var chart='<div class="card"><div class="row" style="margin-bottom:6px"><h2>'+cfg.name+' map · '+cfg.bar+'</h2><span class="lbl">times in ET</span></div>'+po3Chart(R,x)+'</div>';
+  return hero+scen+chart+po3Stat(R);
+}
+function po3Tab(){
+  var R={day:po3Study("day"),week:po3Study("week")};
+  if(!R.day&&!R.week){
+    return'<div class="card"><h2>Power of 3</h2><p class="msg" style="margin:6px 0 0">'+(S.source==="live"&&!S.histErr&&!S.po3Err?"Loading intraday candles…":"The PO3 view needs the live BloFin connection to load intraday candles (30m for the daily version, 4H for the weekly version). It is not available in the snapshot view."+(S.histErr?" ("+S.histErr+")":""))+'</p></div>';
+  }
+  var d=dec(S.sym);
+  var rows=["day","week"].map(function(k){
+    var r=R[k],cfg=PO3_CFG[k];
+    if(!r||!r.cur||r.cur.bad)return'<div class="srow" style="--c:var(--dim)"><div class="row"><b>'+cfg.name+'</b><span class="mut">Loading or not enough candles</span></div></div>';
+    var h=po3Head(r.cur,cfg);
+    return'<div class="srow" style="--c:'+h.col+'"><div class="row"><span><b>'+cfg.name+'</b> '+chip(h.dir,h.dir==="ESPERAR"?"WAIT":h.dir)+'</span><span class="num mut" style="font-size:11.5px">'+(r.cur.state==="ACC"?"accumulating":r.cur.state==="WATCH"?"watching":r.cur.state==="SWEPT"?"swept":r.cur.state==="ACTIVE"?"active":r.cur.state==="DONE"?"finished":"no trade")+'</span></div><div class="bsub">'+h.t+'. '+h.s+'</div></div>';
+  }).join("");
+  var top='<div class="card"><div class="row" style="margin-bottom:4px"><h2>Power of 3 · now</h2><span class="lbl">accumulation · manipulation · distribution</span></div>'+rows+
+    '<p class="msg" style="margin:8px 0 0;font-size:11.5px">PO3 fades a false move: price builds a range, sweeps one side to trap traders, closes back inside, then runs to the other side. Both versions use New York time.</p></div>';
+  var out=top;
+  ["day","week"].forEach(function(k){if(R[k]){R[k].now=Date.now();out+=po3Section(R[k]);}});
+  out+='<p class="foot">Day open, sessions and phases follow New York time (00:00 ET open, accumulation 20:00 to 02:00 ET, manipulation 02:00 to 11:00 ET, distribution to 17:00 ET). The weekly version uses Monday as the accumulation range, Tuesday to Wednesday noon for the sweep, and Friday 17:00 ET as the end. A sweep must be reclaimed by a close within '+PO3_CFG.day.fail+' thirty-minute candles (daily) or '+PO3_CFG.week.fail+' 4H candles (weekly), otherwise it counts as a breakout. Odds are historical frequencies from the candles loaded, not forecasts. PO3 is a discretionary framework; not financial advice.</p>';
+  return out;
+}
+
+/* ===== Macro & news briefing (Summary tab). The data block below is a dated briefing; the calendar countdowns are live. ===== */
+/*NEWS_DATA_START*/
+var NEWS={
+  asOf:Date.UTC(2026,9,14,13,20),asOfTxt:"Wed Oct 14, 9:20 am ET",
+  tone:{dir:"dn",label:"HEADWIND",sum:"Rates and oil are the main pressure on BTC right now. Inflation re-accelerated, the Fed is leaning toward another hike, and the Iran war keeps Brent crude above $100. Nothing in today's news is a clear tailwind."},
+  stories:[
+    {tag:"Inflation",imp:"dn",head:"September CPI came in hot, mainly on core",
+     body:"Headline CPI rose 3.7% y/y (forecast 3.6%, August 3.4%) and 0.6% m/m, as expected. Core CPI rose 2.6% y/y (forecast 2.5%) and 0.3% m/m (forecast 0.2%). Gasoline jumped 9.1% and drove more than half of the monthly rise, but core was broad too, including airfares, used cars and medical care. The 10-year yield rose about 9 bp to roughly 5.31% and the 2-year about 13 bp to roughly 4.92%. Nasdaq 100 futures fell about 0.65% and gold fell about 1.5%.",
+     btc:"BTC dropped about $1,000 to roughly $82,800 on the release. Higher real yields and a firmer dollar are the usual headwind for BTC, and a hot core number keeps that pressure on until the next data points cool.",src:"CoinDesk, CryptoTimes"},
+    {tag:"Fed",imp:"dn",head:"The Fed is leaning toward one more hike",
+     body:"New York Fed President Williams said one more rate hike this year looks appropriate, with no further tightening needed in 2027. Governor Waller (Tuesday) sounded hawkish and said AI-related spending is starting to push up inflation and could for 2 to 3 years. Before the CPI release, futures priced a hold at the October 27-28 meeting (about 77 to 79%) and a hike in early December (about 89%). A hot core print could pull a hike forward to October.",
+     btc:"Hike odds are the single biggest swing factor for BTC this month. Cooler data that lowers the December odds is the main route to relief. More hot data raises the odds and tends to push BTC down with yields up.",src:"Yahoo Finance, FXStreet, CoinDesk, CryptoTimes"},
+    {tag:"Oil and war",imp:"dn",head:"Iran war and Houthi attacks keep Brent above $100",
+     body:"Brent traded just over $105 on Monday, a two-week high, with US crude near $92 to $94. Houthi missiles hit Saudi airports (Riyadh's main airport is suspended through Oct 17) and a limited fire hit an Aramco office on Tuesday after the Saudi-led coalition struck Yemen. Iran's blockade of the Strait of Hormuz continues, the US has blockaded Iranian ports since July 14, and tankers were hit again on Oct 13. Trump said he would not strike Iran before the Nov 3 midterms, but also said the Riyadh attack could change that. Iran and Oman reached an understanding on a temporary shipping route.",
+     btc:"Higher oil feeds inflation and hike expectations, which hurts BTC. A direct escalation (Aramco, Hormuz, a US strike) would likely trigger risk-off selling first. A ceasefire or a working shipping route would pull oil down and help BTC.",src:"CBS News, Yahoo Finance, XTB"},
+    {tag:"AI and chips",imp:"mix",head:"Chip stocks are under pressure from financing costs",
+     body:"South Korea's KOSPI fell about 12% in five days before steadying on Wednesday, as chip stocks sold off on higher funding costs and rising rates. ASML reports Wednesday and TSMC on Thursday, and both are read as tests of AI demand. Waller's AI-inflation comment ties this theme to the Fed.",
+     btc:"BTC has been trading with Nasdaq on risk days. Weak AI or chip earnings would hit sentiment. Solid AI demand calms equities but also supports the inflation worry, so the effect on BTC can go either way.",src:"Yahoo Finance, KuCoin"},
+    {tag:"Politics",imp:"mix",head:"Midterms on Nov 3, tariffs and the Fed's independence",
+     body:"US midterm elections are on Nov 3. After the Supreme Court struck down the broad tariffs in February, the administration relies on Section 301 duties of 10% to 12.5% on imports from about 60 economies, and a tariff dispute with Canada is escalating. An AP-NORC poll found more than 64% of adults say Trump has gone too far on tariffs. Waller said Trump is a threat to Fed independence but is not succeeding so far, and that he has faith in Congress and the courts.",
+     btc:"Tariff headlines add to price pressure and can move risk assets quickly. Any sign that the administration is pushing the Fed to ease against rising inflation would raise inflation fears and could move BTC both ways: weaker dollar versus higher yields.",src:"ABC News (AP), FXStreet"},
+    {tag:"Crypto",imp:"mix",head:"BTC is range-bound near $82.8k to $84k",
+     body:"KuCoin's daily report put support near $82,800 and resistance at $83,600 to $84,000 (before the CPI drop), with the Fear and Greed Index at 62, up from 57. Strive bought 3,311 BTC last week (32,773 BTC total) and launched a $500M preferred stock. Metaplanet plans a buyback and 52 billion yen of convertible bonds to repay Bitcoin-backed loans. A dormant wallet moved 4,582 BTC (about $378M), destination unconfirmed. Ledger confirmed that wallets from one Southeast Asian distributor carried malicious components. Sberbank got approval to offer crypto exchange services (launch planned Dec 1), and China approved Visa, Mastercard and American Express to prepare card clearing.",
+     btc:"Treasury-company buying is a support, while debt-funded treasuries (Metaplanet) are a stress point to watch if BTC falls. Old-holder movements and token unlocks add headline noise rather than direction.",src:"KuCoin"}
+  ],
+  events:[
+    {d:"2026-10-14",tm:"08:30",title:"US CPI (September)",imp:"H",fc:"Headline 3.6% y/y, +0.6% m/m. Core 2.5% y/y, +0.2% m/m",prev:"3.4% y/y headline, 2.4% core",done:true,act:"Headline 3.7% y/y, +0.6% m/m. Core 2.6% y/y, +0.3% m/m",res:"HOT",note:"BTC fell about $1,000 to roughly $82.8k. 10-year yield about 5.31%, 2-year about 4.92%."},
+    {d:"2026-10-14",tm:null,title:"Bank earnings: Bank of America, Morgan Stanley, BlackRock",imp:"M",note:"Read on consumer health and credit. Strong results ease growth fears but do not help the rates story."},
+    {d:"2026-10-14",tm:null,title:"ASML earnings",imp:"M",note:"First big test of AI chip demand after the Asian chip selloff."},
+    {d:"2026-10-14",tm:null,title:"Fed Vice Chair Bowman speaks (time not confirmed)",imp:"L",note:"Another Fed voice after CPI. Hawkish tone would reinforce the hike path."},
+    {d:"2026-10-15",tm:"08:30",title:"US PPI (September)",imp:"H",fc:"Headline +0.5% m/m, core +0.3%",prev:"+0.4% headline, +0.2% core",hot:"Above forecast would extend the inflation shock and push yields up, which is negative for BTC.",cool:"At or below forecast would offer some relief after CPI."},
+    {d:"2026-10-15",tm:"08:30",title:"US retail sales (September)",imp:"H",fc:"+0.3% m/m, ex-autos +0.5%",prev:"+1.2% headline, +1.4% ex-autos",hot:"Strong spending supports more hikes: yields and dollar up, BTC pressure.",cool:"Weak spending lowers hike odds, but a sharp miss can start a growth scare. Mild miss is the best case for BTC."},
+    {d:"2026-10-15",tm:"08:30",title:"US jobless claims",imp:"M",fc:"195K",prev:"197K",hot:"Very low claims mean a tight labor market, which keeps the Fed hawkish.",cool:"A jump would ease hike pressure."},
+    {d:"2026-10-15",tm:"08:30",title:"Philadelphia Fed index (October)",imp:"L",fc:"26.5",prev:"37.8"},
+    {d:"2026-10-15",tm:null,title:"TSMC earnings",imp:"M",note:"AI demand and capex guidance. Moves chip stocks and Nasdaq, and BTC often follows on risk days."},
+    {d:"2026-10-15",tm:"16:30",title:"Fed's Hammack speaks",imp:"M",note:"Cleveland Fed president. Topic not listed; a hawkish tone would reinforce a December hike."},
+    {d:"2026-10-15",tm:"23:30",title:"Fed Chair Warsh speaks",imp:"H",note:"Late Thursday night in New York, overnight in Asia (some calendars list it on Friday morning, UK time). His first words after CPI, PPI and retail sales, so the tone on a hike is the swing factor. Expect thin liquidity and sharp moves."},
+    {d:"2026-10-16",tm:"08:30",title:"US import and export prices (September)",imp:"L"},
+    {d:"2026-10-16",tm:"09:15",title:"US industrial production (September)",imp:"L"},
+    {d:"2026-10-16",tm:null,title:"ARB token unlock",imp:"L",note:"Altcoin supply event. ASTER, CRO and DBR unlocks follow on Oct 17."}
+  ],
+  ahead:[
+    {when:"Oct 27-28",title:"FOMC meeting",txt:"Decision Wednesday Oct 28 at 2:00 pm ET, press conference 2:30 pm. A hold is the base case, but a hot CPI and PPI could bring a hike into play."},
+    {when:"Nov 3",title:"US midterm elections",txt:"Trump has said he will not strike Iran before the vote. Headline risk on tariffs, Fed independence and Iran rises into and after the election."},
+    {when:"Early Dec",title:"December FOMC",txt:"A hike was priced at about 89% before the CPI release. This is the date the market is positioning for."},
+    {when:"Oct 17",title:"Riyadh airport suspension ends",txt:"A marker for how the Houthi and Saudi escalation develops."}
+  ],
+  sources:[
+    ["CoinDesk: September CPI hot, BTC lower","https://www.coindesk.com/markets/2026/10/14/u-s-september-cpi-comes-in-hot-sending-bitcoin-sharply-lower"],
+    ["CryptoTimes: CPI live and Fed odds","https://cryptotimes.io/2026/10/14/us-cpi-live-inflation-data-bitcoin-price-fed-rate-discussion"],
+    ["Yahoo Finance: stock market today, Oct 14","https://finance.yahoo.com/markets/live/stock-market-today-wednesday-october-14-dow-sp-500-nasdaq-081136597.html"],
+    ["investingLive: week ahead","https://investinglive.com/news/week-ahead-us-inflation-and-retail-sales-lead-a-busy-economic-calendar-be-aware/"],
+    ["Newsquawk: weekly calendar","https://www.newsquawk.com/headlines/newsquawk-weekly-economic-calendar---12th-16th-october-2026"],
+    ["Kiplinger: economic calendar","https://www.kiplinger.com/investing/economy/this-weeks-economic-calendar"],
+    ["XTB: calendar, Oct 13","https://xtb.com/int/market-analysis/news-and-research/economic-calendar-start-of-wall-street-earnings-season-hawkish-rba-and-middle-east-tensions-13-10-2026"],
+    ["KuCoin: crypto daily report, Oct 14","https://kucoin.com/news/articles/crypto-daily-market-report-october-14-2026"],
+    ["FXStreet: Waller on Fed independence","https://www.fxstreet.com/news/feds-waller-trump-is-a-threat-to-fed-independence-202610130828"],
+    ["CBS News: Iran war live updates","https://www.cbsnews.com/live-updates/iran-war-us-trump-saudi-arabia-houthi/"],
+    ["ABC News (AP): tariffs and midterms","https://abcnews.com/Business/wireStory/trump-sticks-tariffs-us-voters-turn-midterms-137171759"]
+  ]
+};
+/*NEWS_DATA_END*/
+try{S.newsOpen=LS.get("mtf.newsOpen","1")==="1";}catch(e){S.newsOpen=true;}
+function newsEvT(e){
+  var p=e.d.split("-"),y=+p[0],mo=+p[1]-1,dd=+p[2];
+  if(e.tm){var q=e.tm.split(":");return etUtc(Date.UTC(y,mo,dd,+q[0],+q[1]));}
+  return null;
+}
+function newsDay(ms){return new Date(etLoc(ms)).toISOString().slice(0,10);}
+function newsDayLabel(d){
+  var p=d.split("-"),dt=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
+  return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getUTCDay()]+" "+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()]+" "+dt.getUTCDate();
+}
+function newsTime12(tm){var q=tm.split(":"),h=+q[0],m=q[1];return(h%12||12)+":"+m+(h<12?" am":" pm")+" ET";}
+function newsImp(i){return'<span class="fav" style="--c:'+(i==="H"?"var(--dn)":i==="M"?"var(--warn)":"var(--dim)")+'">'+(i==="H"?"HIGH":i==="M"?"MED":"LOW")+'</span>';}
+function newsDirChip(d){return d==="dn"?chip("SHORT","HEADWIND"):d==="up"?chip("LONG","TAILWIND"):chip("ESPERAR","TWO-WAY");}
+function newsEvRow(e,now,today){
+  var t=newsEvT(e),done=e.done||(t!=null?t<now:e.d<today),when=e.tm?newsTime12(e.tm):"time n/a",st;
+  if(done)st='<span class="mut" style="font-size:11px">DONE</span>';
+  else if(t!=null)st='<span class="acc" style="font-size:11px">in '+po3Clock(t-now)+'</span>';
+  else st='<span class="mut" style="font-size:11px">'+(e.d===today?"today":"")+'</span>';
+  var col=e.imp==="H"?"var(--dn)":e.imp==="M"?"var(--warn)":"var(--dim)";
+  var h='<div class="srow" style="--c:'+col+';'+(done&&!e.done?"opacity:.6":"")+'"><div class="row"><span><b>'+e.title+'</b> '+newsImp(e.imp)+'</span><span class="num mut" style="font-size:11.5px">'+when+' · '+st+'</span></div>';
+  var ln=[];
+  if(e.fc)ln.push("Forecast: "+e.fc+(e.prev?" · Previous: "+e.prev:""));
+  if(e.done&&e.act)ln.push('<b style="color:'+(e.res==="HOT"?"var(--dn)":"var(--fg)")+'">Actual: '+e.act+(e.res?" ("+e.res+")":"")+'</b>');
+  if(e.note)ln.push(e.note);
+  if(!done&&e.hot)ln.push('<span class="dn">If hotter or stronger:</span> '+e.hot);
+  if(!done&&e.cool)ln.push('<span class="up">If cooler or weaker:</span> '+e.cool);
+  if(ln.length)h+='<div class="bsub">'+ln.join("<br>")+'</div>';
+  return h+'</div>';
+}
+function newsCard(){
+  var now=Date.now(),today=newsDay(now),N=NEWS,open=S.newsOpen!==false;
+  var ev=N.events.map(function(e){e.t=newsEvT(e);return e;});
+  var upH=ev.filter(function(e){return e.imp==="H"&&e.t!=null&&e.t>now;}).sort(function(a,b){return a.t-b.t;})[0];
+  var recentH=ev.filter(function(e){return e.imp==="H"&&e.t!=null&&e.t<=now&&now-e.t<45*6e4;})[0];
+  var ageH=(now-N.asOf)/36e5,sameDay=newsDay(N.asOf)===today;
+  var risk="";
+  if(recentH)risk='<div class="ban" style="--c:var(--dn)"><div><b>● VOLATILITY WINDOW</b><div class="bsub">'+recentH.title+' came out '+po3Clock(now-recentH.t)+' ago. Moves can reverse in the first hour, so avoid chasing entries.</div></div></div>';
+  else if(upH&&upH.t-now<=60*6e4)risk='<div class="ban" style="--c:var(--dn)"><div><b>● HIGH-IMPACT RELEASE IN '+po3Clock(upH.t-now).toUpperCase()+'</b><div class="bsub">'+upH.title+'. Spreads and wicks widen around it. Consider waiting until after the release for new entries.</div></div></div>';
+  else if(upH&&upH.t-now<=24*36e5)risk='<div class="ban" style="--c:var(--warn)"><div><b>● NEXT HIGH-IMPACT: '+upH.title.toUpperCase()+' IN '+po3Clock(upH.t-now).toUpperCase()+'</b><div class="bsub">'+newsDayLabel(upH.d)+', '+newsTime12(upH.tm)+'.</div></div></div>';
+  else if(upH)risk='<div class="ban" style="--c:var(--dim)"><div><b>● NEXT HIGH-IMPACT: '+upH.title.toUpperCase()+'</b><div class="bsub">'+newsDayLabel(upH.d)+', '+newsTime12(upH.tm)+' (in '+po3Clock(upH.t-now)+').</div></div></div>';
+  var stale=(!sameDay||ageH>12)?'<div class="ban" style="--c:var(--warn)"><div><b>● BRIEFING IS '+(sameDay?Math.round(ageH)+" HOURS":"FROM "+newsDayLabel(newsDay(N.asOf)).toUpperCase())+' OLD</b><div class="bsub">The stories below were written '+N.asOfTxt+'. Headlines may have changed. The calendar and countdowns are still live, but ask Claude to refresh the briefing for today.</div></div></div>':"";
+  var tcol=N.tone.dir==="dn"?"var(--dn)":N.tone.dir==="up"?"var(--up)":"var(--warn)";
+  var head='<div class="card hero" style="--c:'+tcol+'"><div class="row"><h2>Macro and news</h2><span class="lbl">briefing '+N.asOfTxt+'</span></div>'+
+    '<div class="row" style="margin-top:6px"><span>'+newsDirChip(N.tone.dir)+' <span class="mut" style="font-size:12px">macro tone for BTC</span></span><button class="rbtn" data-news="toggle">'+(open?"Hide":"Show")+'</button></div>'+
+    '<p class="msg" style="margin:8px 0 0;color:var(--fg)">'+N.tone.sum+'</p>'+risk+stale;
+  if(!open)return head+'</div>';
+  var tdy=ev.filter(function(e){return e.d===today;}),rest=ev.filter(function(e){return e.d>today;}),days=[];
+  rest.forEach(function(e){if(days.indexOf(e.d)<0)days.push(e.d);});
+  var sec=function(t){return'<div class="lbl" style="margin:16px 0 4px">'+t+'</div>';};
+  var h=head;
+  h+=sec("Today's calendar · "+newsDayLabel(today)+" (ET)");
+  h+=tdy.length?tdy.map(function(e){return newsEvRow(e,now,today);}).join(""):'<p class="msg" style="margin:4px 0 0">No major scheduled releases in this briefing for today.</p>';
+  h+=sec("What is moving markets and why it matters for BTC");
+  h+=N.stories.map(function(s){
+    var col=s.imp==="dn"?"var(--dn)":s.imp==="up"?"var(--up)":"var(--warn)";
+    return'<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+s.head+'</b></span></div><div style="margin:4px 0 6px">'+newsDirChip(s.imp)+' <span class="lbl">'+s.tag+'</span></div>'+
+      '<p class="msg" style="margin:0 0 6px;font-size:12.5px;line-height:1.5">'+s.body+'</p>'+
+      '<p class="msg" style="margin:0;font-size:12.5px;line-height:1.5;color:var(--fg)"><b>How it may move BTC:</b> '+s.btc+'</p><div class="bsub" style="margin-top:4px;font-size:11px">Source: '+s.src+'</div></div>';
+  }).join("");
+  h+=sec("Rest of the week");
+  h+=days.length?days.map(function(d){return'<div class="row" style="margin:10px 0 2px"><b style="font-size:13px">'+newsDayLabel(d)+'</b></div>'+rest.filter(function(e){return e.d===d;}).map(function(e){return newsEvRow(e,now,today);}).join("");}).join(""):'<p class="msg" style="margin:4px 0 0">Nothing further listed this week.</p>';
+  h+=sec("Further out");
+  h+=N.ahead.map(function(a){return'<div class="srow" style="--c:var(--acc)"><div class="row"><span><b>'+a.title+'</b></span><span class="num mut" style="font-size:11.5px">'+a.when+'</span></div><div class="bsub">'+a.txt+'</div></div>';}).join("");
+  h+='<p class="msg" style="margin:14px 0 0;font-size:11.5px">This is a summary of news reports, written '+N.asOfTxt+'. The widget cannot fetch news by itself, so stories do not update on their own; the calendar countdowns do. Sources can disagree on details (for example the CPI forecast was reported as 3.6% and 3.7%), and the CME hike odds quoted are from before the CPI release. How a headline moves BTC changes from day to day; this is context for your analysis, not a signal or financial advice.</p>';
+  h+='<div class="lbl" style="margin:12px 0 4px">Sources</div><div style="font-size:11.5px;line-height:1.7">'+N.sources.map(function(s){return'<a class="acc" style="text-decoration:none" href="'+s[1]+'" target="_blank" rel="noopener noreferrer">'+s[0]+'</a>';}).join("<br>")+'</div>';
+  return h+'</div>';
+}
+
 function resumen(ag,st){
   var M=MODES[S.mode],a=st.a,d=dec(S.sym);
   var why=a.notes.slice(0,3).map(function(n){return"<li>"+n+"</li>";}).join("")+a.flags.map(function(f){return'<li class="warn">'+f+"</li>";}).join("");
@@ -1425,7 +1883,7 @@ function resumen(ag,st){
   function lvList(arr,cls){return arr.slice(0,3).map(function(x){return'<li><span class="num '+cls+'">'+usd(x.p,d)+'</span><i>'+(x.name||x.n+'× touches')+'</i></li>';}).join("")||'<li class="mut">No levels</li>';}
   var lv='<div class="card"><div class="lv"><div><div class="lbl dn">Resistance</div><ul>'+lvList(st.res,"dn")+'</ul></div><div><div class="lbl up">Support</div><ul>'+lvList(st.sup,"up")+'</ul></div></div></div>';
   var heat='<div class="card"><div class="lbl" style="margin-bottom:8px">Bias by timeframe (0 bearish · 100 bullish)</div><div class="heat">'+TFS.map(function(tf){var x=S.A[tf];return x?'<div class="hcell" style="--c:'+tcol(x.trend)+'"><b>'+tf+'</b><span>'+Math.round(x.bull)+'</span></div>':'<div class="hcell" style="--c:var(--dim)"><b>'+tf+'</b><span>—</span></div>';}).join("")+'</div></div>';
-  return scanCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
+  return scanCard()+newsCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
 }
 
 function matrix(){
@@ -1585,7 +2043,7 @@ function book(){
 function footer(){
   var src=S.source==="live"?"Live BloFin candles, refreshed every minute.":S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-13 · centered cascade layout · no NY open card</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-14b · centered cascade layout · PO3 tab · news section</p>';
 }
 
 function render(){
@@ -1600,17 +2058,19 @@ function render(){
   else if(S.tab==="fib")body=fibTab();
   else if(S.tab==="ew")body=ewTab();
   else if(S.tab==="ema")body=emaTab();
+  else if(S.tab==="po3")body=po3Tab();
   else body=book();
   root.innerHTML=head(ag)+tabsHTML()+'<div class="panel">'+body+'</div>'+footer();
 }
 
 root.addEventListener("click",function(e){
-  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-etf],[data-xtf],[data-rebase]");if(!t)return;
+  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-etf],[data-xtf],[data-news],[data-rebase]");if(!t)return;
   try{var ae=document.activeElement;if(ae&&ae.tagName==="INPUT")ae.blur();}catch(_){}
   if(t.dataset.rebase){delete REFS[t.dataset.rebase];saveRefs();render();return;}
   if(t.dataset.ftf){S.ftf=t.dataset.ftf;render();return;}
   if(t.dataset.etf){S.etf=t.dataset.etf;render();return;}
   if(t.dataset.xtf){S.xtf=t.dataset.xtf;render();return;}
+  if(t.dataset.news){S.newsOpen=!(S.newsOpen!==false);LS.set("mtf.newsOpen",S.newsOpen?"1":"0");render();return;}
   if(t.dataset.itf){S.itf=t.dataset.itf;render();return;}
   if(t.dataset.sym){if(t.dataset.sym!==S.sym)start(t.dataset.sym);return;}
   if(t.dataset.mode){S.mode=t.dataset.mode;LS.set("mtf.mode",S.mode);render();return;}
@@ -1621,16 +2081,18 @@ document.addEventListener("visibilitychange",function(){
   if(wsCtl)wsCtl.kick();
   loadLive(S.sym).then(function(){render();}).catch(function(){});
 });
-var busy=false,hbusy=false,ebusy=false;function now0(){return Date.now();}
+var busy=false,hbusy=false,ebusy=false,pbusy=false;function now0(){return Date.now();}
 setInterval(function(){
   if(document.visibilityState!=="visible"||S.source!=="live"||busy)return;
+  if(S.histAt>0&&now0()-S.histAt>(S.tab==="po3"?6e4:3e5)&&!hbusy){hbusy=true;loadHist(S.sym,false).then(function(){hbusy=false;if(S.tab==="po3")render();});}
+  if(S.po3At>0&&now0()-S.po3At>3e5&&!pbusy){pbusy=true;loadPo3W(S.sym,false).then(function(){pbusy=false;if(S.tab==="po3")render();});}
   if(Date.now()-S.emaAt>12e4&&S.emaAt>0&&!ebusy){ebusy=true;loadEma(S.sym,false).then(function(){ebusy=false;if(S.tab==="ema")render();});}
   var now=Date.now(),per=S.mode==="SCALP"?6e4:3e5,roll=Math.floor((now-3000)/per)>Math.floor((S.loadedAt-3000)/per);
   if(!roll&&now-S.loadedAt<60000)return;
   busy=true;loadLive(S.sym).then(function(){busy=false;render();}).catch(function(){busy=false;});
 },10000);
 
-window.__MTF={emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
+window.__MTF={NEWS:NEWS,newsCard:newsCard,po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
 start("BTC");
 })();
 </script>
