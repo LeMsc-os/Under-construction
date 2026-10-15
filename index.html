@@ -1736,137 +1736,6 @@ function po3Tab(){
   return out;
 }
 
-/* ===== Macro & news briefing (Summary tab). The data block below is a dated briefing; the calendar countdowns are live. ===== */
-/*NEWS_DATA_START*/
-var NEWS={
-  asOf:Date.UTC(2026,9,14,13,20),asOfTxt:"Wed Oct 14, 9:20 am ET",
-  tone:{dir:"dn",label:"HEADWIND",sum:"Rates and oil are the main pressure on BTC right now. Inflation re-accelerated, the Fed is leaning toward another hike, and the Iran war keeps Brent crude above $100. Nothing in today's news is a clear tailwind."},
-  stories:[
-    {tag:"Inflation",imp:"dn",head:"September CPI came in hot, mainly on core",
-     body:"Headline CPI rose 3.7% y/y (forecast 3.6%, August 3.4%) and 0.6% m/m, as expected. Core CPI rose 2.6% y/y (forecast 2.5%) and 0.3% m/m (forecast 0.2%). Gasoline jumped 9.1% and drove more than half of the monthly rise, but core was broad too, including airfares, used cars and medical care. The 10-year yield rose about 9 bp to roughly 5.31% and the 2-year about 13 bp to roughly 4.92%. Nasdaq 100 futures fell about 0.65% and gold fell about 1.5%.",
-     btc:"BTC dropped about $1,000 to roughly $82,800 on the release. Higher real yields and a firmer dollar are the usual headwind for BTC, and a hot core number keeps that pressure on until the next data points cool.",src:"CoinDesk, CryptoTimes"},
-    {tag:"Fed",imp:"dn",head:"The Fed is leaning toward one more hike",
-     body:"New York Fed President Williams said one more rate hike this year looks appropriate, with no further tightening needed in 2027. Governor Waller (Tuesday) sounded hawkish and said AI-related spending is starting to push up inflation and could for 2 to 3 years. Before the CPI release, futures priced a hold at the October 27-28 meeting (about 77 to 79%) and a hike in early December (about 89%). A hot core print could pull a hike forward to October.",
-     btc:"Hike odds are the single biggest swing factor for BTC this month. Cooler data that lowers the December odds is the main route to relief. More hot data raises the odds and tends to push BTC down with yields up.",src:"Yahoo Finance, FXStreet, CoinDesk, CryptoTimes"},
-    {tag:"Oil and war",imp:"dn",head:"Iran war and Houthi attacks keep Brent above $100",
-     body:"Brent traded just over $105 on Monday, a two-week high, with US crude near $92 to $94. Houthi missiles hit Saudi airports (Riyadh's main airport is suspended through Oct 17) and a limited fire hit an Aramco office on Tuesday after the Saudi-led coalition struck Yemen. Iran's blockade of the Strait of Hormuz continues, the US has blockaded Iranian ports since July 14, and tankers were hit again on Oct 13. Trump said he would not strike Iran before the Nov 3 midterms, but also said the Riyadh attack could change that. Iran and Oman reached an understanding on a temporary shipping route.",
-     btc:"Higher oil feeds inflation and hike expectations, which hurts BTC. A direct escalation (Aramco, Hormuz, a US strike) would likely trigger risk-off selling first. A ceasefire or a working shipping route would pull oil down and help BTC.",src:"CBS News, Yahoo Finance, XTB"},
-    {tag:"AI and chips",imp:"mix",head:"Chip stocks are under pressure from financing costs",
-     body:"South Korea's KOSPI fell about 12% in five days before steadying on Wednesday, as chip stocks sold off on higher funding costs and rising rates. ASML reports Wednesday and TSMC on Thursday, and both are read as tests of AI demand. Waller's AI-inflation comment ties this theme to the Fed.",
-     btc:"BTC has been trading with Nasdaq on risk days. Weak AI or chip earnings would hit sentiment. Solid AI demand calms equities but also supports the inflation worry, so the effect on BTC can go either way.",src:"Yahoo Finance, KuCoin"},
-    {tag:"Politics",imp:"mix",head:"Midterms on Nov 3, tariffs and the Fed's independence",
-     body:"US midterm elections are on Nov 3. After the Supreme Court struck down the broad tariffs in February, the administration relies on Section 301 duties of 10% to 12.5% on imports from about 60 economies, and a tariff dispute with Canada is escalating. An AP-NORC poll found more than 64% of adults say Trump has gone too far on tariffs. Waller said Trump is a threat to Fed independence but is not succeeding so far, and that he has faith in Congress and the courts.",
-     btc:"Tariff headlines add to price pressure and can move risk assets quickly. Any sign that the administration is pushing the Fed to ease against rising inflation would raise inflation fears and could move BTC both ways: weaker dollar versus higher yields.",src:"ABC News (AP), FXStreet"},
-    {tag:"Crypto",imp:"mix",head:"BTC is range-bound near $82.8k to $84k",
-     body:"KuCoin's daily report put support near $82,800 and resistance at $83,600 to $84,000 (before the CPI drop), with the Fear and Greed Index at 62, up from 57. Strive bought 3,311 BTC last week (32,773 BTC total) and launched a $500M preferred stock. Metaplanet plans a buyback and 52 billion yen of convertible bonds to repay Bitcoin-backed loans. A dormant wallet moved 4,582 BTC (about $378M), destination unconfirmed. Ledger confirmed that wallets from one Southeast Asian distributor carried malicious components. Sberbank got approval to offer crypto exchange services (launch planned Dec 1), and China approved Visa, Mastercard and American Express to prepare card clearing.",
-     btc:"Treasury-company buying is a support, while debt-funded treasuries (Metaplanet) are a stress point to watch if BTC falls. Old-holder movements and token unlocks add headline noise rather than direction.",src:"KuCoin"}
-  ],
-  events:[
-    {d:"2026-10-14",tm:"08:30",title:"US CPI (September)",imp:"H",fc:"Headline 3.6% y/y, +0.6% m/m. Core 2.5% y/y, +0.2% m/m",prev:"3.4% y/y headline, 2.4% core",done:true,act:"Headline 3.7% y/y, +0.6% m/m. Core 2.6% y/y, +0.3% m/m",res:"HOT",note:"BTC fell about $1,000 to roughly $82.8k. 10-year yield about 5.31%, 2-year about 4.92%."},
-    {d:"2026-10-14",tm:null,title:"Bank earnings: Bank of America, Morgan Stanley, BlackRock",imp:"M",note:"Read on consumer health and credit. Strong results ease growth fears but do not help the rates story."},
-    {d:"2026-10-14",tm:null,title:"ASML earnings",imp:"M",note:"First big test of AI chip demand after the Asian chip selloff."},
-    {d:"2026-10-14",tm:null,title:"Fed Vice Chair Bowman speaks (time not confirmed)",imp:"L",note:"Another Fed voice after CPI. Hawkish tone would reinforce the hike path."},
-    {d:"2026-10-15",tm:"08:30",title:"US PPI (September)",imp:"H",fc:"Headline +0.5% m/m, core +0.3%",prev:"+0.4% headline, +0.2% core",hot:"Above forecast would extend the inflation shock and push yields up, which is negative for BTC.",cool:"At or below forecast would offer some relief after CPI."},
-    {d:"2026-10-15",tm:"08:30",title:"US retail sales (September)",imp:"H",fc:"+0.3% m/m, ex-autos +0.5%",prev:"+1.2% headline, +1.4% ex-autos",hot:"Strong spending supports more hikes: yields and dollar up, BTC pressure.",cool:"Weak spending lowers hike odds, but a sharp miss can start a growth scare. Mild miss is the best case for BTC."},
-    {d:"2026-10-15",tm:"08:30",title:"US jobless claims",imp:"M",fc:"195K",prev:"197K",hot:"Very low claims mean a tight labor market, which keeps the Fed hawkish.",cool:"A jump would ease hike pressure."},
-    {d:"2026-10-15",tm:"08:30",title:"Philadelphia Fed index (October)",imp:"L",fc:"26.5",prev:"37.8"},
-    {d:"2026-10-15",tm:null,title:"TSMC earnings",imp:"M",note:"AI demand and capex guidance. Moves chip stocks and Nasdaq, and BTC often follows on risk days."},
-    {d:"2026-10-15",tm:"16:30",title:"Fed's Hammack speaks",imp:"M",note:"Cleveland Fed president. Topic not listed; a hawkish tone would reinforce a December hike."},
-    {d:"2026-10-15",tm:"23:30",title:"Fed Chair Warsh speaks",imp:"H",note:"Late Thursday night in New York, overnight in Asia (some calendars list it on Friday morning, UK time). His first words after CPI, PPI and retail sales, so the tone on a hike is the swing factor. Expect thin liquidity and sharp moves."},
-    {d:"2026-10-16",tm:"08:30",title:"US import and export prices (September)",imp:"L"},
-    {d:"2026-10-16",tm:"09:15",title:"US industrial production (September)",imp:"L"},
-    {d:"2026-10-16",tm:null,title:"ARB token unlock",imp:"L",note:"Altcoin supply event. ASTER, CRO and DBR unlocks follow on Oct 17."}
-  ],
-  ahead:[
-    {when:"Oct 27-28",title:"FOMC meeting",txt:"Decision Wednesday Oct 28 at 2:00 pm ET, press conference 2:30 pm. A hold is the base case, but a hot CPI and PPI could bring a hike into play."},
-    {when:"Nov 3",title:"US midterm elections",txt:"Trump has said he will not strike Iran before the vote. Headline risk on tariffs, Fed independence and Iran rises into and after the election."},
-    {when:"Early Dec",title:"December FOMC",txt:"A hike was priced at about 89% before the CPI release. This is the date the market is positioning for."},
-    {when:"Oct 17",title:"Riyadh airport suspension ends",txt:"A marker for how the Houthi and Saudi escalation develops."}
-  ],
-  sources:[
-    ["CoinDesk: September CPI hot, BTC lower","https://www.coindesk.com/markets/2026/10/14/u-s-september-cpi-comes-in-hot-sending-bitcoin-sharply-lower"],
-    ["CryptoTimes: CPI live and Fed odds","https://cryptotimes.io/2026/10/14/us-cpi-live-inflation-data-bitcoin-price-fed-rate-discussion"],
-    ["Yahoo Finance: stock market today, Oct 14","https://finance.yahoo.com/markets/live/stock-market-today-wednesday-october-14-dow-sp-500-nasdaq-081136597.html"],
-    ["investingLive: week ahead","https://investinglive.com/news/week-ahead-us-inflation-and-retail-sales-lead-a-busy-economic-calendar-be-aware/"],
-    ["Newsquawk: weekly calendar","https://www.newsquawk.com/headlines/newsquawk-weekly-economic-calendar---12th-16th-october-2026"],
-    ["Kiplinger: economic calendar","https://www.kiplinger.com/investing/economy/this-weeks-economic-calendar"],
-    ["XTB: calendar, Oct 13","https://xtb.com/int/market-analysis/news-and-research/economic-calendar-start-of-wall-street-earnings-season-hawkish-rba-and-middle-east-tensions-13-10-2026"],
-    ["KuCoin: crypto daily report, Oct 14","https://kucoin.com/news/articles/crypto-daily-market-report-october-14-2026"],
-    ["FXStreet: Waller on Fed independence","https://www.fxstreet.com/news/feds-waller-trump-is-a-threat-to-fed-independence-202610130828"],
-    ["CBS News: Iran war live updates","https://www.cbsnews.com/live-updates/iran-war-us-trump-saudi-arabia-houthi/"],
-    ["ABC News (AP): tariffs and midterms","https://abcnews.com/Business/wireStory/trump-sticks-tariffs-us-voters-turn-midterms-137171759"]
-  ]
-};
-/*NEWS_DATA_END*/
-try{S.newsOpen=LS.get("mtf.newsOpen","1")==="1";}catch(e){S.newsOpen=true;}
-function newsEvT(e){
-  var p=e.d.split("-"),y=+p[0],mo=+p[1]-1,dd=+p[2];
-  if(e.tm){var q=e.tm.split(":");return etUtc(Date.UTC(y,mo,dd,+q[0],+q[1]));}
-  return null;
-}
-function newsDay(ms){return new Date(etLoc(ms)).toISOString().slice(0,10);}
-function newsDayLabel(d){
-  var p=d.split("-"),dt=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]));
-  return["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getUTCDay()]+" "+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][dt.getUTCMonth()]+" "+dt.getUTCDate();
-}
-function newsTime12(tm){var q=tm.split(":"),h=+q[0],m=q[1];return(h%12||12)+":"+m+(h<12?" am":" pm")+" ET";}
-function newsImp(i){return'<span class="fav" style="--c:'+(i==="H"?"var(--dn)":i==="M"?"var(--warn)":"var(--dim)")+'">'+(i==="H"?"HIGH":i==="M"?"MED":"LOW")+'</span>';}
-function newsDirChip(d){return d==="dn"?chip("SHORT","HEADWIND"):d==="up"?chip("LONG","TAILWIND"):chip("ESPERAR","TWO-WAY");}
-function newsEvRow(e,now,today){
-  var t=newsEvT(e),done=e.done||(t!=null?t<now:e.d<today),when=e.tm?newsTime12(e.tm):"time n/a",st;
-  if(done)st='<span class="mut" style="font-size:11px">DONE</span>';
-  else if(t!=null)st='<span class="acc" style="font-size:11px">in '+po3Clock(t-now)+'</span>';
-  else st='<span class="mut" style="font-size:11px">'+(e.d===today?"today":"")+'</span>';
-  var col=e.imp==="H"?"var(--dn)":e.imp==="M"?"var(--warn)":"var(--dim)";
-  var h='<div class="srow" style="--c:'+col+';'+(done&&!e.done?"opacity:.6":"")+'"><div class="row"><span><b>'+e.title+'</b> '+newsImp(e.imp)+'</span><span class="num mut" style="font-size:11.5px">'+when+' · '+st+'</span></div>';
-  var ln=[];
-  if(e.fc)ln.push("Forecast: "+e.fc+(e.prev?" · Previous: "+e.prev:""));
-  if(e.done&&e.act)ln.push('<b style="color:'+(e.res==="HOT"?"var(--dn)":"var(--fg)")+'">Actual: '+e.act+(e.res?" ("+e.res+")":"")+'</b>');
-  if(e.note)ln.push(e.note);
-  if(!done&&e.hot)ln.push('<span class="dn">If hotter or stronger:</span> '+e.hot);
-  if(!done&&e.cool)ln.push('<span class="up">If cooler or weaker:</span> '+e.cool);
-  if(ln.length)h+='<div class="bsub">'+ln.join("<br>")+'</div>';
-  return h+'</div>';
-}
-function newsCard(){
-  var now=Date.now(),today=newsDay(now),N=NEWS,open=S.newsOpen!==false;
-  var ev=N.events.map(function(e){e.t=newsEvT(e);return e;});
-  var upH=ev.filter(function(e){return e.imp==="H"&&e.t!=null&&e.t>now;}).sort(function(a,b){return a.t-b.t;})[0];
-  var recentH=ev.filter(function(e){return e.imp==="H"&&e.t!=null&&e.t<=now&&now-e.t<45*6e4;})[0];
-  var ageH=(now-N.asOf)/36e5,sameDay=newsDay(N.asOf)===today;
-  var risk="";
-  if(recentH)risk='<div class="ban" style="--c:var(--dn)"><div><b>● VOLATILITY WINDOW</b><div class="bsub">'+recentH.title+' came out '+po3Clock(now-recentH.t)+' ago. Moves can reverse in the first hour, so avoid chasing entries.</div></div></div>';
-  else if(upH&&upH.t-now<=60*6e4)risk='<div class="ban" style="--c:var(--dn)"><div><b>● HIGH-IMPACT RELEASE IN '+po3Clock(upH.t-now).toUpperCase()+'</b><div class="bsub">'+upH.title+'. Spreads and wicks widen around it. Consider waiting until after the release for new entries.</div></div></div>';
-  else if(upH&&upH.t-now<=24*36e5)risk='<div class="ban" style="--c:var(--warn)"><div><b>● NEXT HIGH-IMPACT: '+upH.title.toUpperCase()+' IN '+po3Clock(upH.t-now).toUpperCase()+'</b><div class="bsub">'+newsDayLabel(upH.d)+', '+newsTime12(upH.tm)+'.</div></div></div>';
-  else if(upH)risk='<div class="ban" style="--c:var(--dim)"><div><b>● NEXT HIGH-IMPACT: '+upH.title.toUpperCase()+'</b><div class="bsub">'+newsDayLabel(upH.d)+', '+newsTime12(upH.tm)+' (in '+po3Clock(upH.t-now)+').</div></div></div>';
-  var stale=(!sameDay||ageH>12)?'<div class="ban" style="--c:var(--warn)"><div><b>● BRIEFING IS '+(sameDay?Math.round(ageH)+" HOURS":"FROM "+newsDayLabel(newsDay(N.asOf)).toUpperCase())+' OLD</b><div class="bsub">The stories below were written '+N.asOfTxt+'. Headlines may have changed. The calendar and countdowns are still live, but ask Claude to refresh the briefing for today.</div></div></div>':"";
-  var tcol=N.tone.dir==="dn"?"var(--dn)":N.tone.dir==="up"?"var(--up)":"var(--warn)";
-  var head='<div class="card hero" style="--c:'+tcol+'"><div class="row"><h2>Macro and news</h2><span class="lbl">briefing '+N.asOfTxt+'</span></div>'+
-    '<div class="row" style="margin-top:6px"><span>'+newsDirChip(N.tone.dir)+' <span class="mut" style="font-size:12px">macro tone for BTC</span></span><button class="rbtn" data-news="toggle">'+(open?"Hide":"Show")+'</button></div>'+
-    '<p class="msg" style="margin:8px 0 0;color:var(--fg)">'+N.tone.sum+'</p>'+risk+stale;
-  if(!open)return head+'</div>';
-  var tdy=ev.filter(function(e){return e.d===today;}),rest=ev.filter(function(e){return e.d>today;}),days=[];
-  rest.forEach(function(e){if(days.indexOf(e.d)<0)days.push(e.d);});
-  var sec=function(t){return'<div class="lbl" style="margin:16px 0 4px">'+t+'</div>';};
-  var h=head;
-  h+=sec("Today's calendar · "+newsDayLabel(today)+" (ET)");
-  h+=tdy.length?tdy.map(function(e){return newsEvRow(e,now,today);}).join(""):'<p class="msg" style="margin:4px 0 0">No major scheduled releases in this briefing for today.</p>';
-  h+=sec("What is moving markets and why it matters for BTC");
-  h+=N.stories.map(function(s){
-    var col=s.imp==="dn"?"var(--dn)":s.imp==="up"?"var(--up)":"var(--warn)";
-    return'<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+s.head+'</b></span></div><div style="margin:4px 0 6px">'+newsDirChip(s.imp)+' <span class="lbl">'+s.tag+'</span></div>'+
-      '<p class="msg" style="margin:0 0 6px;font-size:12.5px;line-height:1.5">'+s.body+'</p>'+
-      '<p class="msg" style="margin:0;font-size:12.5px;line-height:1.5;color:var(--fg)"><b>How it may move BTC:</b> '+s.btc+'</p><div class="bsub" style="margin-top:4px;font-size:11px">Source: '+s.src+'</div></div>';
-  }).join("");
-  h+=sec("Rest of the week");
-  h+=days.length?days.map(function(d){return'<div class="row" style="margin:10px 0 2px"><b style="font-size:13px">'+newsDayLabel(d)+'</b></div>'+rest.filter(function(e){return e.d===d;}).map(function(e){return newsEvRow(e,now,today);}).join("");}).join(""):'<p class="msg" style="margin:4px 0 0">Nothing further listed this week.</p>';
-  h+=sec("Further out");
-  h+=N.ahead.map(function(a){return'<div class="srow" style="--c:var(--acc)"><div class="row"><span><b>'+a.title+'</b></span><span class="num mut" style="font-size:11.5px">'+a.when+'</span></div><div class="bsub">'+a.txt+'</div></div>';}).join("");
-  h+='<p class="msg" style="margin:14px 0 0;font-size:11.5px">This is a summary of news reports, written '+N.asOfTxt+'. The widget cannot fetch news by itself, so stories do not update on their own; the calendar countdowns do. Sources can disagree on details (for example the CPI forecast was reported as 3.6% and 3.7%), and the CME hike odds quoted are from before the CPI release. How a headline moves BTC changes from day to day; this is context for your analysis, not a signal or financial advice.</p>';
-  h+='<div class="lbl" style="margin:12px 0 4px">Sources</div><div style="font-size:11.5px;line-height:1.7">'+N.sources.map(function(s){return'<a class="acc" style="text-decoration:none" href="'+s[1]+'" target="_blank" rel="noopener noreferrer">'+s[0]+'</a>';}).join("<br>")+'</div>';
-  return h+'</div>';
-}
-
 function resumen(ag,st){
   var M=MODES[S.mode],a=st.a,d=dec(S.sym);
   var why=a.notes.slice(0,3).map(function(n){return"<li>"+n+"</li>";}).join("")+a.flags.map(function(f){return'<li class="warn">'+f+"</li>";}).join("");
@@ -1883,7 +1752,7 @@ function resumen(ag,st){
   function lvList(arr,cls){return arr.slice(0,3).map(function(x){return'<li><span class="num '+cls+'">'+usd(x.p,d)+'</span><i>'+(x.name||x.n+'× touches')+'</i></li>';}).join("")||'<li class="mut">No levels</li>';}
   var lv='<div class="card"><div class="lv"><div><div class="lbl dn">Resistance</div><ul>'+lvList(st.res,"dn")+'</ul></div><div><div class="lbl up">Support</div><ul>'+lvList(st.sup,"up")+'</ul></div></div></div>';
   var heat='<div class="card"><div class="lbl" style="margin-bottom:8px">Bias by timeframe (0 bearish · 100 bullish)</div><div class="heat">'+TFS.map(function(tf){var x=S.A[tf];return x?'<div class="hcell" style="--c:'+tcol(x.trend)+'"><b>'+tf+'</b><span>'+Math.round(x.bull)+'</span></div>':'<div class="hcell" style="--c:var(--dim)"><b>'+tf+'</b><span>—</span></div>';}).join("")+'</div></div>';
-  return scanCard()+newsCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
+  return scanCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
 }
 
 function matrix(){
@@ -2043,7 +1912,7 @@ function book(){
 function footer(){
   var src=S.source==="live"?"Live BloFin candles, refreshed every minute.":S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-14b · centered cascade layout · PO3 tab · news section</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-14 · centered cascade layout · PO3 tab</p>';
 }
 
 function render(){
@@ -2064,13 +1933,12 @@ function render(){
 }
 
 root.addEventListener("click",function(e){
-  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-etf],[data-xtf],[data-news],[data-rebase]");if(!t)return;
+  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-etf],[data-xtf],[data-rebase]");if(!t)return;
   try{var ae=document.activeElement;if(ae&&ae.tagName==="INPUT")ae.blur();}catch(_){}
   if(t.dataset.rebase){delete REFS[t.dataset.rebase];saveRefs();render();return;}
   if(t.dataset.ftf){S.ftf=t.dataset.ftf;render();return;}
   if(t.dataset.etf){S.etf=t.dataset.etf;render();return;}
   if(t.dataset.xtf){S.xtf=t.dataset.xtf;render();return;}
-  if(t.dataset.news){S.newsOpen=!(S.newsOpen!==false);LS.set("mtf.newsOpen",S.newsOpen?"1":"0");render();return;}
   if(t.dataset.itf){S.itf=t.dataset.itf;render();return;}
   if(t.dataset.sym){if(t.dataset.sym!==S.sym)start(t.dataset.sym);return;}
   if(t.dataset.mode){S.mode=t.dataset.mode;LS.set("mtf.mode",S.mode);render();return;}
@@ -2092,7 +1960,7 @@ setInterval(function(){
   busy=true;loadLive(S.sym).then(function(){busy=false;render();}).catch(function(){busy=false;});
 },10000);
 
-window.__MTF={NEWS:NEWS,newsCard:newsCard,po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
+window.__MTF={po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
 start("BTC");
 })();
 </script>
