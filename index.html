@@ -554,7 +554,7 @@ function start(sym){
   S.sym=sym;S.long=null;S.longErr="";S.hist=null;S.nyDays=null;S.histBars=null;S.histAt=0;S.histErr="";S.emaRaw={};S.emaAt=0;S.emaErr="";S.po3W=null;S.po3Raw={};S.po3At=0;S.po3Err="";S.source="loading";S.book={asks:[],bids:[]};S.err="";stopWS();
   if(sym==="BTC"){useSnapshot();S.source="loading";}else{S.data={};S.forming={};S.A={};S.price=null;}
   render();
-  loadLive(sym).then(function(){connectWS(sym);render();loadHist(sym,true).then(function(){render();});loadPo3W(sym,true).then(function(){render();});loadLong(sym).then(function(){render();});loadEma(sym,true).then(function(){render();});if(Date.now()-S.trmAt>6e5)loadTrm().then(function(){render();});}).catch(function(e){
+  loadLive(sym).then(function(){connectWS(sym);render();loadHist(sym,true).then(function(){render();});loadPo3W(sym,true).then(function(){render();});loadLong(sym).then(function(){render();});loadEma(sym,true).then(function(){render();});}).catch(function(e){
     S.err=(e&&e.message)?e.message:"no connection";
     if(sym==="BTC"){useSnapshot();}else{S.source="none";S.data={};S.forming={};S.A={};S.price=null;}
     render();
@@ -1867,47 +1867,6 @@ function newsCard(){
   return h+'</div>';
 }
 
-/* ===== TRM (Colombia) ===== */
-var TRM0={val:3181.74,prev:3194.44,from:"2026-10-14",to:"2026-10-14",src:"Superfinanciera, as reported by colombia.com and El Universal on Oct 14, 2026"};
-S.trm=null;S.trmAt=0;S.trmLive=false;S.mid=null;S.trmErr="";
-function rmDate(iso){var p=String(iso).slice(0,10).split("-");if(p.length<3)return String(iso);var m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1]-1];return m+" "+(+p[2])+", "+p[0];}
-function bogotaDay(ms){return new Date(ms-5*36e5).toISOString().slice(0,10);}
-function trmCur(){return S.trm||TRM0;}
-function loadTrm(){
-  S.trmAt=Date.now();
-  var url="https://www.datos.gov.co/resource/32sa-8pi3.json?$order=vigenciadesde%20DESC&$limit=6";
-  var p1=timeoutFetch(url,8000).then(function(rows){
-    if(!rows||!rows.length)throw new Error("empty");
-    var td=bogotaDay(Date.now()),pick=null,i;
-    for(i=0;i<rows.length;i++){var a=String(rows[i].vigenciadesde).slice(0,10),b=String(rows[i].vigenciahasta).slice(0,10);if(a<=td&&td<=b){pick=i;break;}}
-    if(pick==null){for(i=0;i<rows.length;i++){if(String(rows[i].vigenciadesde).slice(0,10)<=td){pick=i;break;}}}
-    if(pick==null)pick=0;
-    var cur=+rows[pick].valor,prev=rows[pick+1]?+rows[pick+1].valor:null;
-    if(!isFinite(cur)||cur<500||cur>20000)throw new Error("bad value");
-    S.trm={val:cur,prev:prev,from:String(rows[pick].vigenciadesde).slice(0,10),to:String(rows[pick].vigenciahasta).slice(0,10),src:"Superfinanciera, live from datos.gov.co"};
-    S.trmLive=true;S.trmErr="";
-  }).catch(function(e){S.trmErr=String(e&&e.message||e);});
-  var p2=timeoutFetch("https://open.er-api.com/v6/latest/USD",8000).then(function(j){
-    var r=j&&j.rates&&j.rates.COP;if(r>500&&r<20000)S.mid={val:r,at:(j.time_last_update_unix||0)*1000};
-  }).catch(function(){});
-  return Promise.all([p1,p2]);
-}
-function trmCard(){
-  var T=trmCur(),d=T.prev!=null?T.val-T.prev:null,pc=d!=null?d/T.prev*100:null;
-  var col=d==null?"var(--acc)":d>=0?"var(--up)":"var(--dn)";
-  var tf=function(n,k){return n.toLocaleString("en-US",{minimumFractionDigits:k,maximumFractionDigits:k});};
-  var today=bogotaDay(Date.now()),valid=(today>=T.from&&today<=T.to);
-  var stat=S.trmLive?'<span class="lbl" style="color:var(--up)">● live</span>':'<span class="lbl" style="color:var(--warn)">'+(valid?"saved value":"saved value, may be outdated")+'</span>';
-  var h='<div class="card hero" style="--c:'+col+'"><div class="row"><h2>Colombia TRM · USD/COP</h2>'+stat+'</div>'+
-    '<div class="row" style="margin-top:6px;align-items:baseline"><span class="num" style="font-size:28px;font-weight:700">'+tf(T.val,2)+' <span class="mut" style="font-size:13px;font-weight:400">COP per $1</span></span></div>';
-  h+='<div class="sub" style="margin-top:4px">'+(d!=null?'<span class="num" style="color:'+col+'">'+(d>=0?"+":"")+tf(d,2)+' ('+(d>=0?"+":"")+tf(pc,2)+'%)</span> vs previous TRM '+tf(T.prev,2)+' · ':'')+'valid '+(T.from===T.to?rmDate(T.from):rmDate(T.from)+' to '+rmDate(T.to))+'</div>';
-  var ex=[];
-  if(S.mid)ex.push('Market mid-rate now: <b class="num">'+tf(S.mid.val,2)+'</b>');
-  if(S.price&&S.sym==="BTC")ex.push('BTC ≈ <b class="num">COP '+Math.round(S.price*T.val).toLocaleString("en-US")+'</b> at TRM');
-  if(ex.length)h+='<div class="sub" style="margin-top:2px">'+ex.join(" · ")+'</div>';
-  h+='<div class="msg" style="margin-top:4px;font-size:11.5px">Source: '+T.src+'.'+(S.trmLive?'':' This view could not reach the live feed, so it shows the last value saved in the widget. Open the standalone page for live updates.')+'</div>';
-  return h+'</div>';
-}
 function resumen(ag,st){
   var M=MODES[S.mode],a=st.a,d=dec(S.sym);
   var why=a.notes.slice(0,3).map(function(n){return"<li>"+n+"</li>";}).join("")+a.flags.map(function(f){return'<li class="warn">'+f+"</li>";}).join("");
@@ -1924,7 +1883,7 @@ function resumen(ag,st){
   function lvList(arr,cls){return arr.slice(0,3).map(function(x){return'<li><span class="num '+cls+'">'+usd(x.p,d)+'</span><i>'+(x.name||x.n+'× touches')+'</i></li>';}).join("")||'<li class="mut">No levels</li>';}
   var lv='<div class="card"><div class="lv"><div><div class="lbl dn">Resistance</div><ul>'+lvList(st.res,"dn")+'</ul></div><div><div class="lbl up">Support</div><ul>'+lvList(st.sup,"up")+'</ul></div></div></div>';
   var heat='<div class="card"><div class="lbl" style="margin-bottom:8px">Bias by timeframe (0 bearish · 100 bullish)</div><div class="heat">'+TFS.map(function(tf){var x=S.A[tf];return x?'<div class="hcell" style="--c:'+tcol(x.trend)+'"><b>'+tf+'</b><span>'+Math.round(x.bull)+'</span></div>':'<div class="hcell" style="--c:var(--dim)"><b>'+tf+'</b><span>—</span></div>';}).join("")+'</div></div>';
-  return trmCard()+scanCard()+newsCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
+  return scanCard()+newsCard()+(S.mode==='SCALP'||S.mode==='DAY'?revCard(ag):'')+hero+sides()+chart+lv+heat;
 }
 
 function matrix(){
@@ -2084,7 +2043,7 @@ function book(){
 function footer(){
   var src=S.source==="live"?"Live BloFin candles, refreshed every minute.":S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-14c · TRM card · news section · PO3 tab</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-14b · centered cascade layout · PO3 tab · news section</p>';
 }
 
 function render(){
@@ -2122,11 +2081,10 @@ document.addEventListener("visibilitychange",function(){
   if(wsCtl)wsCtl.kick();
   loadLive(S.sym).then(function(){render();}).catch(function(){});
 });
-var busy=false,trmb=false,hbusy=false,ebusy=false,pbusy=false;function now0(){return Date.now();}
+var busy=false,hbusy=false,ebusy=false,pbusy=false;function now0(){return Date.now();}
 setInterval(function(){
   if(document.visibilityState!=="visible"||S.source!=="live"||busy)return;
   if(S.histAt>0&&now0()-S.histAt>(S.tab==="po3"?6e4:3e5)&&!hbusy){hbusy=true;loadHist(S.sym,false).then(function(){hbusy=false;if(S.tab==="po3")render();});}
-  if(S.trmAt>0&&now0()-S.trmAt>18e5&&!trmb){trmb=true;loadTrm().then(function(){trmb=false;if(S.tab==="resumen")render();});}
   if(S.po3At>0&&now0()-S.po3At>3e5&&!pbusy){pbusy=true;loadPo3W(S.sym,false).then(function(){pbusy=false;if(S.tab==="po3")render();});}
   if(Date.now()-S.emaAt>12e4&&S.emaAt>0&&!ebusy){ebusy=true;loadEma(S.sym,false).then(function(){ebusy=false;if(S.tab==="ema")render();});}
   var now=Date.now(),per=S.mode==="SCALP"?6e4:3e5,roll=Math.floor((now-3000)/per)>Math.floor((S.loadedAt-3000)/per);
@@ -2134,7 +2092,7 @@ setInterval(function(){
   busy=true;loadLive(S.sym).then(function(){busy=false;render();}).catch(function(){busy=false;});
 },10000);
 
-window.__MTF={getS:function(){return S;},trmCard:trmCard,TRM0:TRM0,loadTrm:loadTrm,NEWS:NEWS,newsCard:newsCard,po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
+window.__MTF={NEWS:NEWS,newsCard:newsCard,po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
 start("BTC");
 })();
 </script>
