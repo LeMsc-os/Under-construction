@@ -525,9 +525,9 @@ function timeoutFetch(url,ms){
   }
   return go(0);
 }
-function loadLive(sym){
+function loadLiveWith(sym,fetchTf){
   return Promise.all(TFS.map(function(tf){
-    return timeoutFetch(REST+"?instId="+sym+"-USDT&bar="+tf+"&limit="+LIMITS[tf],8000).then(function(j){
+    return fetchTf(tf).then(function(j){
       if(!j||j.code!=="0"||!j.data||j.data.length<40)throw new Error("incomplete data "+tf);
       if(Date.now()-(+j.data[0][0])>2*BARMS[tf])return{tf:tf,stale:true};
       var rows=j.data.slice().reverse(),fm=null;
@@ -542,6 +542,47 @@ function loadLive(sym){
     var pk=TFS.filter(function(t){return f[t];})[0];if(!pk)throw new Error(errs.length?errs.slice(0,3).join("; "):"stale data");
     if(Object.keys(f).length<4)throw new Error("only "+Object.keys(f).length+" timeframes loaded ("+errs.slice(0,3).join("; ")+")");
     S.data=d;S.forming=f;S.tF=tt;S.stale=stale;S.price=f[pk].c;S.asOf=Date.now();S.loadedAt=Date.now();S.source="live";S.err="";recompute();
+  });
+}
+function loadBlofin(sym){return loadLiveWith(sym,function(tf){return timeoutFetch(REST+"?instId="+sym+"-USDT&bar="+tf+"&limit="+LIMITS[tf],8000);});}
+/* Backup feed: Kraken public candles (CORS enabled). Used only when BloFin cannot be reached from this connection. Rows are converted to BloFin's layout so the rest of the app is unchanged. */
+var KR_INT={"1m":1,"5m":5,"15m":15,"1H":60,"4H":240,"1D":1440,"1W":10080};
+function krPair(sym){return(sym==="BTC"?"XBT":sym)+"USDT";}
+function krFetchOnce(sym,tf){
+  return rawFetch("https://api.kraken.com/0/public/OHLC?pair="+krPair(sym)+"&interval="+KR_INT[tf],9000).then(function(j){
+    if(j&&j.error&&j.error.length)throw new Error(String(j.error[0]));
+    var res=j&&j.result,key=null,k;if(!res)throw new Error("no result");
+    for(k in res){if(k!=="last"&&Object.prototype.toString.call(res[k])==="[object Array]"){key=k;break;}}
+    if(!key)throw new Error("no candles");
+    var arr=res[key].slice(-LIMITS[tf]),out=[],i,n=arr.length;
+    for(i=n-1;i>=0;i--){var r=arr[i],v=+r[6];out.push([String(r[0]*1000),r[1],r[2],r[3],r[4],String(v),String(v),String(v*(+r[4])),i===n-1?"0":"1"]);}
+    return{code:"0",data:out};
+  });
+}
+function krFetch(sym,tf,n){
+  return krFetchOnce(sym,tf).catch(function(e){
+    var m=String((e&&e.message)||e);
+    if((n||0)>=2||!/^EAPI/.test(m))throw e;
+    return new Promise(function(r){setTimeout(r,1200*((n||0)+1));}).then(function(){return krFetch(sym,tf,(n||0)+1);});
+  });
+}
+function loadAlt(sym){
+  var chain=Promise.resolve(),dead=null;
+  return loadLiveWith(sym,function(tf){
+    var p=chain.then(function(){if(dead)throw dead;return new Promise(function(r){setTimeout(r,280);});}).then(function(){if(dead)throw dead;return krFetch(sym,tf,0);}).catch(function(e){dead=dead||e;throw e;});
+    chain=p.catch(function(){});return p;
+  });
+}
+function msgOf(e){return String((e&&e.message)||e||"no connection");}
+function loadLive(sym){
+  var useAlt=S.feed==="alt"&&Date.now()-(S.feedProbe||0)<3e5;
+  if(useAlt){
+    return loadAlt(sym).catch(function(e1){
+      return loadBlofin(sym).then(function(){S.feed="blofin";S.altWhy="";},function(e2){throw new Error("Kraken: "+msgOf(e1)+" | BloFin: "+msgOf(e2));});
+    });
+  }
+  return loadBlofin(sym).then(function(){S.feed="blofin";S.altWhy="";},function(e1){
+    return loadAlt(sym).then(function(){S.feed="alt";S.feedProbe=Date.now();S.altWhy=msgOf(e1);},function(e2){throw new Error("BloFin: "+msgOf(e1)+" | Kraken: "+msgOf(e2));});
   });
 }
 var wsCtl=null;
@@ -586,13 +627,21 @@ function start(sym){
   }
   loadLive(sym).then(function(){onLive(sym,fallback);},function(e){fallback(e,"");});
 }
+function secondary(sym){
+  S.sec=true;
+  loadHist(sym,true).then(function(){render();}).catch(function(){});
+  loadPo3W(sym,true).then(function(){render();}).catch(function(){});
+  loadLong(sym).then(function(){render();}).catch(function(){});
+  loadEma(sym,true).then(function(){render();}).catch(function(){});
+}
 function onLive(sym,fallback){
   try{
-    S.retryAt=0;connectWS(sym);render();
-    loadHist(sym,true).then(function(){render();}).catch(function(){});
-    loadPo3W(sym,true).then(function(){render();}).catch(function(){});
-    loadLong(sym).then(function(){render();}).catch(function(){});
-    loadEma(sym,true).then(function(){render();}).catch(function(){});
+    S.retryAt=0;S.err="";
+    if(S.feed==="alt"){
+      stopWS();S.sec=false;
+      S.histErr=S.po3Err=S.emaErr=S.longErr="needs the BloFin connection, which is not reachable from here";
+      render();
+    }else{connectWS(sym);render();secondary(sym);}
     if(Date.now()-S.trmAt>6e5)loadTrm().then(function(){render();}).catch(function(){});
   }catch(e){if(fallback)fallback(e,"display error: ");}
 }
@@ -610,6 +659,7 @@ var root=document.getElementById("app");
 function badge(){
   if(S.source==="loading")return'<span class="badge warn">● LOADING</span>';
   if(S.source==="live"){
+    if(S.feed==="alt")return'<span class="badge warn">● CANDLES · KRAKEN FEED</span>';
     if(S.ws==="OPEN")return'<span class="badge up">● LIVE</span>';
     return'<span class="badge warn">● CANDLES · TICKS '+(S.ws==="DOWN"?"DISCONNECTED":"CONNECTING")+'</span>';
   }
@@ -2126,9 +2176,9 @@ function book(){
 }
 
 function footer(){
-  var src=S.source==="live"?"Live BloFin candles, refreshed every minute.":S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
+  var src=S.source==="live"?(S.feed==="alt"?"Live candles from Kraken "+S.sym+"/USDT, refreshed every 30 seconds. BloFin could not be reached from this connection"+(S.altWhy?" ("+S.altWhy+")":"")+", so prices can differ slightly from BloFin and the weekly candle starts on a different day. The order book, tick-by-tick price, PO3 history, long EMA history and long-term waves need BloFin and are unavailable until it connects. The widget re-checks BloFin every 5 minutes.":"Live BloFin candles, refreshed every minute."):S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-15a · TRM card · auto-reconnect · news section · PO3 tab</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-15b · TRM card · auto-reconnect · Kraken backup feed · news section · PO3 tab</p>';
 }
 
 function render(){
@@ -2176,8 +2226,8 @@ setInterval(function(){
   if(S.po3At>0&&now0()-S.po3At>3e5&&!pbusy){pbusy=true;loadPo3W(S.sym,false).then(function(){pbusy=false;if(S.tab==="po3")render();});}
   if(Date.now()-S.emaAt>12e4&&S.emaAt>0&&!ebusy){ebusy=true;loadEma(S.sym,false).then(function(){ebusy=false;if(S.tab==="ema")render();});}
   var now=Date.now(),per=S.mode==="SCALP"?6e4:3e5,roll=Math.floor((now-3000)/per)>Math.floor((S.loadedAt-3000)/per);
-  if(!roll&&now-S.loadedAt<60000)return;
-  busy=true;loadLive(S.sym).then(function(){busy=false;render();}).catch(function(){busy=false;});
+  if(!roll&&now-S.loadedAt<(S.feed==="alt"?30000:60000))return;
+  busy=true;loadLive(S.sym).then(function(){busy=false;if(S.feed==="blofin"&&!S.sec)onLive(S.sym,null);else render();}).catch(function(){busy=false;});
 },10000);
 
 window.__MTF={getS:function(){return S;},trmCard:trmCard,TRM0:TRM0,loadTrm:loadTrm,NEWS:NEWS,newsCard:newsCard,po3Calc:po3Calc,po3Stats:po3Stats,po3Study:po3Study,PO3_CFG:PO3_CFG,po3Anchor:po3Anchor,etUtc:etUtc,etLoc:etLoc,loadPo3W:loadPo3W,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,nySessView:nySessView,ukOff:ukOff,euOpenH:euOpenH,sgn:sgn,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,elliottFit:elliottFit,ewDescribe:ewDescribe,evalImpulse:evalImpulse,nyBuild:nyBuild,nyEst:nyEst,nyView:nyView,nyLocal:nyLocal,nyOpenMs:nyOpenMs,nyOff:nyOff,nyPattern:nyPattern,loadHist:loadHist,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast};
