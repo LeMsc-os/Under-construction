@@ -545,31 +545,48 @@ function loadLiveWith(sym,fetchTf){
   });
 }
 function loadBlofin(sym){return loadLiveWith(sym,function(tf){return timeoutFetch(REST+"?instId="+sym+"-USDT&bar="+tf+"&limit="+LIMITS[tf],8000);});}
-/* Backup feed: Kraken public candles (CORS enabled). Used only when BloFin cannot be reached from this connection. Rows are converted to BloFin's layout so the rest of the app is unchanged. */
-var KR_INT={"1m":1,"5m":5,"15m":15,"1H":60,"4H":240,"1D":1440,"1W":10080};
-function krPair(sym){return(sym==="BTC"?"XBT":sym)+"USDT";}
-function krFetchOnce(sym,tf){
-  return rawFetch("https://api.kraken.com/0/public/OHLC?pair="+krPair(sym)+"&interval="+KR_INT[tf],9000).then(function(j){
-    if(j&&j.error&&j.error.length)throw new Error(String(j.error[0]));
-    var res=j&&j.result,key=null,k;if(!res)throw new Error("no result");
-    for(k in res){if(k!=="last"&&Object.prototype.toString.call(res[k])==="[object Array]"){key=k;break;}}
-    if(!key)throw new Error("no candles");
-    var arr=res[key].slice(-LIMITS[tf]),out=[],i,n=arr.length;
-    for(i=n-1;i>=0;i--){var r=arr[i],v=+r[6];out.push([String(r[0]*1000),r[1],r[2],r[3],r[4],String(v),String(v),String(v*(+r[4])),i===n-1?"0":"1"]);}
+/* Backup feed: Bitstamp public candles (CORS enabled, US based). Used only when BloFin cannot be reached from this connection. Rows are converted to BloFin's layout so the rest of the app is unchanged. Bitstamp has no weekly bar, so 1W is built from daily candles (weeks start Monday, UTC). */
+var BS_STEP={"1m":60,"5m":300,"15m":900,"1H":3600,"4H":14400,"1D":86400};
+function bsPair(sym){return sym.toLowerCase()+"usdt";}
+function bsCandles(sym,step,limit){
+  return rawFetch("https://www.bitstamp.net/api/v2/ohlc/"+bsPair(sym)+"/?step="+step+"&limit="+limit,9000).then(function(j){
+    var a=j&&j.data&&j.data.ohlc;
+    if(!a||!a.length){var er=j&&(j.reason||j.code||j.error);throw new Error(er?String(typeof er==="object"?JSON.stringify(er):er).slice(0,80):"no candles");}
+    var o=[],i,r;
+    for(i=0;i<a.length;i++){r=a[i];var t=+r.timestamp,op=+r.open,h=+r.high,l=+r.low,c=+r.close,v=+r.volume;
+      if(isFinite(t)&&isFinite(h)&&isFinite(l)&&isFinite(c))o.push({t:t,o:op,h:h,l:l,c:c,v:isFinite(v)?v:0});}
+    o.sort(function(x,y){return x.t-y.t;});
+    if(!o.length)throw new Error("no valid candles");
+    return o;
+  });
+}
+function bsWeekly(d,limit){
+  var w=[],cur=null,i,x,di,ws;
+  for(i=0;i<d.length;i++){x=d[i];di=Math.floor(x.t/86400);ws=(di-((di+3)%7))*86400;
+    if(!cur||cur.t!==ws){cur={t:ws,o:x.o,h:x.h,l:x.l,c:x.c,v:x.v};w.push(cur);}
+    else{if(x.h>cur.h)cur.h=x.h;if(x.l<cur.l)cur.l=x.l;cur.c=x.c;cur.v+=x.v;}}
+  return w.slice(-limit);
+}
+function bsFetchOnce(sym,tf){
+  var weekly=tf==="1W";
+  return bsCandles(sym,weekly?86400:BS_STEP[tf],weekly?1000:LIMITS[tf]).then(function(c){
+    if(weekly)c=bsWeekly(c,LIMITS[tf]);else c=c.slice(-LIMITS[tf]);
+    var out=[],i,n=c.length,x;
+    for(i=n-1;i>=0;i--){x=c[i];out.push([String(x.t*1000),String(x.o),String(x.h),String(x.l),String(x.c),String(x.v),String(x.v),String(x.v*x.c),i===n-1?"0":"1"]);}
     return{code:"0",data:out};
   });
 }
-function krFetch(sym,tf,n){
-  return krFetchOnce(sym,tf).catch(function(e){
+function bsFetch(sym,tf,n){
+  return bsFetchOnce(sym,tf).catch(function(e){
     var m=String((e&&e.message)||e);
-    if((n||0)>=2||!/^EAPI/.test(m))throw e;
-    return new Promise(function(r){setTimeout(r,1200*((n||0)+1));}).then(function(){return krFetch(sym,tf,(n||0)+1);});
+    if((n||0)>=1||/Failed to fetch|Load failed|timed out|NetworkError/i.test(m))throw e;
+    return new Promise(function(r){setTimeout(r,800);}).then(function(){return bsFetch(sym,tf,(n||0)+1);});
   });
 }
 function loadAlt(sym){
   var chain=Promise.resolve(),dead=null;
   return loadLiveWith(sym,function(tf){
-    var p=chain.then(function(){if(dead)throw dead;return new Promise(function(r){setTimeout(r,280);});}).then(function(){if(dead)throw dead;return krFetch(sym,tf,0);}).catch(function(e){dead=dead||e;throw e;});
+    var p=chain.then(function(){if(dead)throw dead;return new Promise(function(r){setTimeout(r,120);});}).then(function(){if(dead)throw dead;return bsFetch(sym,tf,0);}).catch(function(e){dead=dead||e;throw e;});
     chain=p.catch(function(){});return p;
   });
 }
@@ -578,11 +595,11 @@ function loadLive(sym){
   var useAlt=S.feed==="alt"&&Date.now()-(S.feedProbe||0)<3e5;
   if(useAlt){
     return loadAlt(sym).catch(function(e1){
-      return loadBlofin(sym).then(function(){S.feed="blofin";S.altWhy="";},function(e2){throw new Error("Kraken: "+msgOf(e1)+" | BloFin: "+msgOf(e2));});
+      return loadBlofin(sym).then(function(){S.feed="blofin";S.altWhy="";},function(e2){throw new Error("Bitstamp: "+msgOf(e1)+" | BloFin: "+msgOf(e2));});
     });
   }
   return loadBlofin(sym).then(function(){S.feed="blofin";S.altWhy="";},function(e1){
-    return loadAlt(sym).then(function(){S.feed="alt";S.feedProbe=Date.now();S.altWhy=msgOf(e1);},function(e2){throw new Error("BloFin: "+msgOf(e1)+" | Kraken: "+msgOf(e2));});
+    return loadAlt(sym).then(function(){S.feed="alt";S.feedProbe=Date.now();S.altWhy=msgOf(e1);},function(e2){throw new Error("BloFin: "+msgOf(e1)+" | Bitstamp: "+msgOf(e2));});
   });
 }
 var wsCtl=null;
@@ -659,7 +676,7 @@ var root=document.getElementById("app");
 function badge(){
   if(S.source==="loading")return'<span class="badge warn">● LOADING</span>';
   if(S.source==="live"){
-    if(S.feed==="alt")return'<span class="badge warn">● CANDLES · KRAKEN FEED</span>';
+    if(S.feed==="alt")return'<span class="badge warn">● CANDLES · BITSTAMP FEED</span>';
     if(S.ws==="OPEN")return'<span class="badge up">● LIVE</span>';
     return'<span class="badge warn">● CANDLES · TICKS '+(S.ws==="DOWN"?"DISCONNECTED":"CONNECTING")+'</span>';
   }
@@ -2176,9 +2193,9 @@ function book(){
 }
 
 function footer(){
-  var src=S.source==="live"?(S.feed==="alt"?"Live candles from Kraken "+S.sym+"/USDT, refreshed every 30 seconds. BloFin could not be reached from this connection"+(S.altWhy?" ("+S.altWhy+")":"")+", so prices can differ slightly from BloFin and the weekly candle starts on a different day. The order book, tick-by-tick price, PO3 history, long EMA history and long-term waves need BloFin and are unavailable until it connects. The widget re-checks BloFin every 5 minutes.":"Live BloFin candles, refreshed every minute."):S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
+  var src=S.source==="live"?(S.feed==="alt"?"Live candles from Bitstamp "+S.sym+"/USDT, refreshed every 30 seconds. BloFin could not be reached from this connection"+(S.altWhy?" ("+S.altWhy+")":"")+", so prices can differ slightly from BloFin and the weekly candle is built from daily candles. The order book, tick-by-tick price, PO3 history, long EMA history and long-term waves need BloFin and are unavailable until it connects. The widget re-checks BloFin every 5 minutes.":"Live BloFin candles, refreshed every minute."):S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-15b · TRM card · auto-reconnect · Kraken backup feed · news section · PO3 tab</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-10-16a · TRM card · auto-reconnect · Bitstamp backup feed · news section · PO3 tab</p>';
 }
 
 function render(){
