@@ -693,7 +693,7 @@ function head(ag){
     '<div class="modes"><div class="seggrp">'+modes+'</div></div></div>';
 }
 function tabsHTML(){
-  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["fib","Fib"],["ema","EMAs"],["book","Book"]];
+  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["struct","Struct."],["fib","Fib"],["ema","EMAs"],["book","Book"]];
   return'<div class="tabs">'+T.map(function(t){return'<button class="tab'+(S.tab===t[0]?" on":"")+'" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
 }
 
@@ -1369,6 +1369,194 @@ function indTab(){
 }
 
 var lastPair=null;
+/* ===== Market structure: swings, HH/HL/LH/LL, BOS, CHoCH and liquidity sweeps (1m, 5m, 15m, 1H scalp frames; 4H and 1D for the trend) ===== */
+var ST_TFS=["1m","5m","15m","1H"],ST_HTF=["4H","1D"],ST_ALL=["1m","5m","15m","1H","4H","1D"];
+var ST_K={"1m":3,"5m":3,"15m":3,"1H":3,"4H":2,"1D":2};
+function structCalc(tf){
+  var a=S.A[tf];if(!a||!a.h||a.c.length<40)return null;
+  var h=a.h,l=a.l,c=a.c,n=c.length,k=ST_K[tf]||3,atr=(isFinite(a.atr)&&a.atr>0)?a.atr:(h[n-2]-l[n-2])||1,minMove=0.6*atr,i,j;
+  /* swing points: a bar whose high (low) is the extreme of k bars on each side; only closed bars, so they never repaint */
+  var raw=[];
+  for(i=k;i<=n-2-k;i++){
+    var isH=true,isL=true;
+    for(j=1;j<=k;j++){
+      if(!(h[i]>h[i-j])||!(h[i]>=h[i+j]))isH=false;
+      if(!(l[i]<l[i-j])||!(l[i]<=l[i+j]))isL=false;
+    }
+    if(isH)raw.push({i:i,p:h[i],t:"H",ci:i+k});
+    if(isL)raw.push({i:i,p:l[i],t:"L",ci:i+k});
+  }
+  var piv=[];
+  raw.forEach(function(p){
+    var last=piv[piv.length-1];
+    if(!last){piv.push(p);return;}
+    if(p.t===last.t){if((p.t==="H"&&p.p>last.p)||(p.t==="L"&&p.p<last.p))piv[piv.length-1]=p;return;}
+    if(Math.abs(p.p-last.p)<minMove)return;
+    piv.push(p);
+  });
+  var pH=null,pL=null,eq=0.1*atr;
+  piv.forEach(function(p){
+    if(p.t==="H"){p.lab=!pH?"H":Math.abs(p.p-pH.p)<=eq?"EQH":p.p>pH.p?"HH":"LH";pH=p;}
+    else{p.lab=!pL?"L":Math.abs(p.p-pL.p)<=eq?"EQL":p.p>pL.p?"HL":"LL";pL=p;}
+  });
+  /* walk the bars: a close beyond the latest unbroken swing is a break. With the trend = BOS, against it = CHoCH */
+  var trend=0,aH=null,aL=null,ev=[],pi=0;
+  for(i=0;i<n;i++){
+    while(pi<piv.length&&piv[pi].ci<=i){var q=piv[pi++];var o={p:q.p,i:q.i,brk:false,sw:false};if(q.t==="H")aH=o;else aL=o;}
+    var broke=false;
+    if(aH&&!aH.brk){
+      if(c[i]>aH.p){if(ev.length&&ev[ev.length-1].kind==="SWEEP"&&ev[ev.length-1].li===aH.i&&i-ev[ev.length-1].i<=3)ev.pop();ev.push({i:i,dir:1,kind:trend===-1?"CHoCH":"BOS",level:aH.p,li:aH.i,live:i===n-1});aH.brk=true;trend=1;broke=true;}
+      else if(h[i]>aH.p&&!aH.sw){ev.push({i:i,dir:-1,kind:"SWEEP",level:aH.p,li:aH.i,live:i===n-1});aH.sw=true;}
+    }
+    if(!broke&&aL&&!aL.brk){
+      if(c[i]<aL.p){if(ev.length&&ev[ev.length-1].kind==="SWEEP"&&ev[ev.length-1].li===aL.i&&i-ev[ev.length-1].i<=3)ev.pop();ev.push({i:i,dir:-1,kind:trend===1?"CHoCH":"BOS",level:aL.p,li:aL.i,live:i===n-1});aL.brk=true;trend=-1;}
+      else if(l[i]<aL.p&&!aL.sw){ev.push({i:i,dir:1,kind:"SWEEP",level:aL.p,li:aL.i,live:i===n-1});aL.sw=true;}
+    }
+  }
+  var hiP=null,loP=null;
+  for(i=piv.length-1;i>=0&&(!hiP||!loP);i--){if(piv[i].t==="H"&&!hiP)hiP=piv[i];if(piv[i].t==="L"&&!loP)loP=piv[i];}
+  var price=c[n-1],lastEv=null,sweep=null;
+  for(i=ev.length-1;i>=0;i--){
+    if(!lastEv&&ev[i].kind!=="SWEEP"){lastEv=ev[i];lastEv.age=n-1-ev[i].i;}
+    if(!sweep&&ev[i].kind==="SWEEP"&&n-1-ev[i].i<=8){sweep=ev[i];sweep.age=n-1-ev[i].i;}
+  }
+  /* the leg price is pulling back from: protected swing -> furthest extreme since */
+  var depth=null,legEnd=null,legStart=null;
+  if(trend===1&&loP){var mx=-Infinity;for(i=loP.i;i<n;i++)if(h[i]>mx)mx=h[i];legEnd=mx;legStart=loP.p;if(mx-loP.p>0.8*atr)depth=(mx-price)/(mx-loP.p);}
+  if(trend===-1&&hiP){var mn=Infinity;for(i=hiP.i;i<n;i++)if(l[i]<mn)mn=l[i];legEnd=mn;legStart=hiP.p;if(hiP.p-mn>0.8*atr)depth=(price-mn)/(hiP.p-mn);}
+  var labH=hiP?hiP.lab:"",labL=loP?loP.lab:"";
+  var clean=(trend===1&&labH==="HH"&&labL==="HL")||(trend===-1&&labH==="LH"&&labL==="LL");
+  return{tf:tf,a:a,n:n,atr:atr,price:price,piv:piv,ev:ev,trend:trend,aH:(aH&&!aH.brk)?aH:null,aL:(aL&&!aL.brk)?aL:null,hiP:hiP,loP:loP,lastEv:lastEv,sweep:sweep,depth:depth,legEnd:legEnd,legStart:legStart,clean:clean};
+}
+function stAll(){var R={};ST_ALL.forEach(function(tf){R[tf]=structCalc(tf);});return R;}
+function stAge(bars,tf){var ms=Math.max(0,bars)*BARMS[tf];if(ms<60e3)return"now";if(ms<36e5)return Math.round(ms/6e4)+" min ago";if(ms<864e5)return(ms/36e5).toFixed(ms<72e5?1:0)+" h ago";return Math.round(ms/864e5)+" d ago";}
+function stTrendWord(t){return t>0?"UP":t<0?"DOWN":"RANGE";}
+function stChip(t){return chip(t>0?"LONG":t<0?"SHORT":"ESPERAR",stTrendWord(t));}
+function stEvTxt(e,tf){if(!e)return"No break of structure in the loaded candles";return(e.kind==="CHoCH"?"CHoCH ":"BOS ")+(e.dir>0?"↑":"↓")+" · "+stAge(e.age,tf)+(e.live?" (candle still open)":"");}
+function stBiasInfo(R){
+  var t4=R["4H"]?R["4H"].trend:0,t1=R["1D"]?R["1D"].trend:0,th=R["1H"]?R["1H"].trend:0;
+  var side=t4!==0?t4:t1;
+  function v(t){return t===side?1:t===-side?-1:0;}
+  return{side:side,t4:t4,t1:t1,th:th,score:side?v(t4)+v(t1)+v(th):0};
+}
+function stHtfVerdict(R){
+  var B=stBiasInfo(R);
+  if(B.t4!==0&&B.t4===B.t1)return{col:B.t4>0?"var(--up)":"var(--dn)",title:"CLEAR "+(B.t4>0?"UPTREND":"DOWNTREND"),msg:"4H and daily agree. "+(B.t4>0?"Look for longs on pullbacks; shorts are counter-trend.":"Look for shorts on bounces; longs are counter-trend.")};
+  if(B.t4!==0&&B.t1===0)return{col:B.t4>0?"var(--up)":"var(--dn)",title:(B.t4>0?"4H UPTREND":"4H DOWNTREND")+" · DAILY RANGE",msg:"The 4H has a trend, the daily is still in a range. Trade the 4H direction but expect the daily range edges to stop it."};
+  if(B.t4!==0&&B.t1===-B.t4)return{col:"var(--warn)",title:"MIXED · 4H "+stTrendWord(B.t4)+", DAILY "+stTrendWord(B.t1),msg:"The 4H move is "+(B.t4>0?"a bounce":"a pullback")+" inside the opposite daily trend (or an early reversal). Scalp the 4H direction only with a smaller size and quick targets."};
+  if(B.t4===0&&B.t1!==0)return{col:B.t1>0?"var(--up)":"var(--dn)",title:"DAILY "+(B.t1>0?"UPTREND":"DOWNTREND")+" · 4H RANGE",msg:"The daily has a trend but the 4H is ranging or resetting. Wait for the 4H to break structure in the daily direction."};
+  return{col:"var(--warn)",title:"NO CLEAR TREND",msg:"Both 4H and daily are ranging. Scalps have worse odds here. Wait for a 4H break of structure."};
+}
+/* scalp plan: higher timeframes give the side, 15m must not fight it, then a 5m CHoCH (or a 1m CHoCH inside a 5m pullback) is the trigger */
+function stPlan(R){
+  var d=dec(S.sym),px=S.price,B=stBiasInfo(R),o={B:B,d:d};
+  if(S.source!=="live"){o.kind="stale";o.title="PLAN PAUSED";o.col="var(--dim)";o.msg="The data is not live, so no scalp plan is given.";return o;}
+  if(!R["1m"]||!R["5m"]||!R["15m"]||!R["1H"]||!R["4H"]||!R["1D"]){o.kind="stale";o.title="NOT ENOUGH CANDLES";o.col="var(--dim)";o.msg="One of the timeframes has too few candles loaded yet.";return o;}
+  if(!B.side){o.kind="none";o.title="NO TRADE";o.col="var(--warn)";o.msg="4H and daily show no clear trend. Wait for a 4H break of structure before scalping.";return o;}
+  var side=B.side,up=side>0,sn=up?"LONG":"SHORT",col=up?"var(--up)":"var(--dn)",m15=R["15m"],m5=R["5m"],m1=R["1m"],arrow=up?"↑":"↓",abv=up?"above":"below",opp=up?"down":"up";
+  o.side=side;o.grade=B.score>=3?"A":B.score===2?"B":"C";
+  if(B.score<=0){o.kind="none";o.title="NO TRADE";o.col="var(--warn)";o.msg="Higher timeframes disagree (4H "+stTrendWord(B.t4).toLowerCase()+", 1H "+stTrendWord(B.th).toLowerCase()+", daily "+stTrendWord(B.t1).toLowerCase()+"). Wait until 4H and 1H point the same way.";return o;}
+  function lvl(X,wantHigh){var z=wantHigh?X.aH:X.aL;return z?z.p:null;}
+  if(m15.trend===-side){
+    var l15=lvl(m15,up);o.kind="wait";o.title="WAIT · "+sn+" BIAS";o.col="var(--warn)";
+    o.msg="Bias is "+sn+" but the 15m is still trending "+opp+". Wait for a 15m CHoCH "+arrow+(l15!=null?" (a 15m close "+abv+" "+usd(l15,d)+")":"")+".";return o;}
+  var ev5=m5.lastEv,ev1=m1.lastEv,tg=null;
+  if(ev5&&ev5.kind==="CHoCH"&&ev5.dir===side&&ev5.age<=8)tg={tf:"5m",X:m5,ev:ev5};
+  else if(m5.trend===side&&m5.depth!=null&&m5.depth>=0.25&&m5.depth<=0.85&&ev1&&ev1.kind==="CHoCH"&&ev1.dir===side&&ev1.age<=10)tg={tf:"1m",X:m1,ev:ev1};
+  if(!tg){
+    o.kind="watch";o.title="WATCH · "+sn+" SETUP";o.col="var(--warn)";
+    if(m5.trend===-side){var l5=lvl(m5,up);o.msg="Pullback under way on the 5m. Trigger: a 5m close "+abv+" "+(l5!=null?usd(l5,d):"the last 5m swing")+" (5m CHoCH "+arrow+"). Do not enter before it.";}
+    else if(m5.depth==null||m5.depth<0.25){var zl=m5.legEnd!=null?m5.legEnd-side*0.85*Math.abs(m5.legEnd-m5.legStart):null,zh=m5.legEnd!=null?m5.legEnd-side*0.25*Math.abs(m5.legEnd-m5.legStart):null;
+      o.msg="Price is pushing "+(up?"up":"down")+" with no real pullback. Do not chase. Wait for a pullback"+(zl!=null?" into "+usd(Math.min(zl,zh),d)+" – "+usd(Math.max(zl,zh),d):"")+", then a 1m CHoCH "+arrow+".";}
+    else if(m5.depth>0.85){o.msg="The 5m pullback is very deep ("+Math.round(m5.depth*100)+"% of the leg) and its structure is at risk. Wait for the 5m to rebuild.";}
+    else{var l1=lvl(m1,up);o.msg="Price is inside the 5m pullback zone ("+Math.round(m5.depth*100)+"% of the leg). Trigger: a 1m close "+abv+" "+(l1!=null?usd(l1,d):"the last 1m swing")+" (1m CHoCH "+arrow+").";}
+    return o;
+  }
+  var X=tg.X,ev=tg.ev,prot=up?X.loP:X.hiP,atrT=X.atr;
+  if(!prot){o.kind="watch";o.title="WATCH · "+sn+" SETUP";o.col="var(--warn)";o.msg="A "+tg.tf+" CHoCH "+arrow+" printed but there is no clear swing to put the stop behind.";return o;}
+  var stop=prot.p-side*0.25*atrT,risk=Math.abs(px-stop);if(risk<0.5*atrT){risk=0.5*atrT;stop=px-side*risk;}
+  if(ev.live){o.kind="almost";o.title="ALMOST · "+tg.tf+" CHoCH "+arrow;o.col="var(--warn)";o.msg="The "+tg.tf+" candle is breaking "+usd(ev.level,d)+" right now. Wait for it to close "+abv+" that level before entering.";return o;}
+  if(side*(px-ev.level)>1.2*atrT){o.kind="wait";o.title="LATE · DO NOT CHASE";o.col="var(--warn)";o.msg="The "+tg.tf+" CHoCH was at "+usd(ev.level,d)+" and price already ran "+(Math.abs(px-ev.level)/atrT).toFixed(1)+" ATR. Wait for a pullback and the next trigger.";return o;}
+  if(risk>3*m5.atr){o.kind="wait";o.title="STOP TOO WIDE";o.col="var(--warn)";o.msg="The stop would be "+usd(risk,d)+" away ("+(risk/m5.atr).toFixed(1)+" × the 5m ATR). Too far for a scalp, skip this one.";return o;}
+  var cands=[];
+  ["5m","15m","1H"].forEach(function(t){var Z=R[t];if(!Z)return;Z.piv.forEach(function(p){if(up?(p.t==="H"&&p.p>px):(p.t==="L"&&p.p<px))cands.push(p.p);});if(Z.legEnd!=null&&Z.trend===side&&side*(Z.legEnd-px)>0)cands.push(Z.legEnd);});
+  cands.sort(function(x,y){return up?x-y:y-x;});
+  var tp1=null,tp2=null,i;
+  for(i=0;i<cands.length;i++){if(Math.abs(cands[i]-px)>=1.2*risk){tp1=cands[i];break;}}
+  if(tp1==null)tp1=px+side*1.5*risk;
+  if(Math.abs(tp1-px)>2.5*risk)tp1=px+side*2*risk;
+  for(i=0;i<cands.length;i++){if(Math.abs(cands[i]-px)>=Math.max(2*risk,Math.abs(tp1-px)*1.25)){tp2=cands[i];break;}}
+  if(tp2==null)tp2=px+side*3*risk;
+  var m5prot=up?m5.loP:m5.hiP;
+  o.kind="enter";o.col=o.grade==="C"?"var(--warn)":col;o.tg=tg;o.entry=px;o.sl=stop;o.tp1=tp1;o.tp2=tp2;o.risk=risk;o.rr1=Math.abs(tp1-px)/risk;o.rr2=Math.abs(tp2-px)/risk;
+  o.exitEarly=(tg.tf==="1m"&&m5prot&&m5.trend===side)?{tf:"5m",p:m5prot.p}:null;
+  o.title=(o.grade==="C"?"CAUTION · ":"ENTER ")+sn+(o.grade==="C"?" SCALP":" NOW");
+  o.msg=tg.tf+" CHoCH "+arrow+" confirmed at "+usd(ev.level,d)+", with 4H"+(B.t4===side?" and 1H":"")+" backing it (grade "+o.grade+")."+(o.grade==="C"?" The daily disagrees: use half size and take profit quickly.":"");
+  return o;
+}
+function stSVG(X){
+  var W=340,H=250,pl=6,pr=70,pt=10,pb=10,N=Math.min(X.n,X.tf==="1D"||X.tf==="4H"?60:70),i0=X.n-N,a=X.a,i,lo=Infinity,hi=-Infinity;
+  for(i=i0;i<X.n;i++){if(a.h[i]>hi)hi=a.h[i];if(a.l[i]<lo)lo=a.l[i];}
+  var pad=(hi-lo)*0.06;lo-=pad;hi+=pad;
+  function x(i){return pl+(W-pl-pr)*((i-i0+0.5)/N);}function y(v){return pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));}
+  var bw=Math.max(1.2,Math.min(4,(W-pl-pr)/N*0.7)),s="";
+  for(i=i0;i<X.n;i++){var up=a.c[i]>=(i>0?a.c[i-1]:a.c[i]);s+='<line x1="'+x(i).toFixed(1)+'" x2="'+x(i).toFixed(1)+'" y1="'+y(a.h[i]).toFixed(1)+'" y2="'+y(a.l[i]).toFixed(1)+'" stroke="'+(up?"var(--up)":"var(--dn)")+'" stroke-width="1" opacity=".75"/><line x1="'+x(i).toFixed(1)+'" x2="'+(x(i)+bw).toFixed(1)+'" y1="'+y(a.c[i]).toFixed(1)+'" y2="'+y(a.c[i]).toFixed(1)+'" stroke="'+(up?"var(--up)":"var(--dn)")+'" stroke-width="1.4"/>';}
+  var labs=[];
+  X.ev.forEach(function(e){
+    if(e.i<i0)return;var col=e.dir>0?"var(--up)":"var(--dn)",x0=x(Math.max(e.li,i0)),x1=x(e.i),yy=y(e.level);
+    if(e.kind==="SWEEP"){s+='<circle cx="'+x1.toFixed(1)+'" cy="'+yy.toFixed(1)+'" r="3" fill="none" stroke="var(--warn)" stroke-width="1.2"/>';return;}
+    s+='<line x1="'+x0.toFixed(1)+'" x2="'+x1.toFixed(1)+'" y1="'+yy.toFixed(1)+'" y2="'+yy.toFixed(1)+'" stroke="'+col+'" stroke-width="1" stroke-dasharray="3 3"/>'+
+      '<text class="t tb" x="'+((x0+x1)/2).toFixed(1)+'" y="'+(yy+(e.dir>0?-3:10)).toFixed(1)+'" text-anchor="middle" style="fill:'+col+'">'+e.kind+'</text>';
+  });
+  X.piv.forEach(function(p){if(p.i<i0)return;var col=(p.lab==="HH"||p.lab==="HL")?"var(--up)":(p.lab==="LH"||p.lab==="LL")?"var(--dn)":"var(--mut)";
+    s+='<text class="t" x="'+x(p.i).toFixed(1)+'" y="'+(y(p.p)+(p.t==="H"?-4:11)).toFixed(1)+'" text-anchor="middle" style="fill:'+col+'">'+p.lab+'</text>';});
+  [[X.aH,"var(--dn)"],[X.aL,"var(--up)"]].forEach(function(z){if(!z[0]||z[0].p<lo||z[0].p>hi)return;s+='<line x1="'+x(Math.max(z[0].i,i0)).toFixed(1)+'" x2="'+(W-pr)+'" y1="'+y(z[0].p).toFixed(1)+'" y2="'+y(z[0].p).toFixed(1)+'" stroke="'+z[1]+'" stroke-width="1" opacity=".8"/>';labs.push({y:y(z[0].p),t:fmtN(z[0].p,X.price),col:z[1]});});
+  labs.push({y:y(X.price),t:fmtN(X.price,X.price),col:"var(--acc)",bold:1});
+  labs.sort(function(p,q){return p.y-q.y;});for(i=1;i<labs.length;i++){if(labs[i].y-labs[i-1].y<10)labs[i].y=labs[i-1].y+10;}
+  var tx=labs.map(function(l){return'<text class="t'+(l.bold?" tb":"")+'" x="'+(W-pr+4)+'" y="'+(l.y+3).toFixed(1)+'" style="fill:'+l.col+'">'+l.t+'</text>';}).join("");
+  return'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Market structure '+X.tf+'">'+s+'<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(X.price).toFixed(1)+'" y2="'+y(X.price).toFixed(1)+'" stroke="var(--acc)" stroke-width="1" stroke-dasharray="1 3" opacity=".7"/>'+tx+'</svg>';
+}
+function stEma(a){
+  if(!a||!isFinite(a.e9)||!isFinite(a.e21)||!isFinite(a.e50))return"EMAs not available";
+  var st=a.e9>a.e21&&a.e21>a.e50?"EMAs stacked up (9>21>50)":a.e9<a.e21&&a.e21<a.e50?"EMAs stacked down (9<21<50)":"EMAs mixed";
+  return st+(isFinite(a.e200)?" · price "+(a.price>a.e200?"above":"below")+" EMA200":"");
+}
+function stAdx(a){if(!a||!isFinite(a.adx))return"";var v=a.adx;return"ADX "+Math.round(v)+(v>=25?" (strong trend)":v>=20?" (trend building)":" (weak, choppy)");}
+function stTfRow(X,tf,d,detail){
+  if(!X)return'<div class="srow" style="--c:var(--dim)"><div class="row"><b>'+tf+'</b><span class="mut">Not enough candles</span></div></div>';
+  var col=X.trend>0?"var(--up)":X.trend<0?"var(--dn)":"var(--warn)",prot=X.trend>0?X.loP:X.trend<0?X.hiP:null,brk=X.trend>0?X.aH:X.trend<0?X.aL:null;
+  var lab=(X.hiP?X.hiP.lab:"–")+" · "+(X.loP?X.loP.lab:"–");
+  var sub=stEvTxt(X.lastEv,tf)+(X.sweep?" · sweep "+(X.sweep.dir>0?"of lows ↑":"of highs ↓")+" "+stAge(X.sweep.age,tf):"");
+  var lv=[];if(prot)lv.push((X.trend>0?"holds above ":"holds below ")+usd(prot.p,d));if(brk)lv.push("next break "+usd(brk.p,d));if(X.depth!=null)lv.push("pullback "+Math.round(Math.max(0,X.depth)*100)+"%");
+  var html='<div class="srow" style="--c:'+col+'"><div class="row"><span><b>'+tf+'</b> '+stChip(X.trend)+(X.clean?"":' <span class="mut" style="font-size:11px">not clean</span>')+'</span><span class="num mut">'+lab+'</span></div><div class="bsub">'+sub+'</div>'+(lv.length?'<div class="bsub">'+lv.join(" · ")+'</div>':'');
+  if(detail)html+='<div class="bsub">'+stEma(X.a)+(stAdx(X.a)?" · "+stAdx(X.a):"")+'</div>';
+  return html+'</div>';
+}
+function structTab(){
+  var d=dec(S.sym),R=stAll(),any=ST_ALL.some(function(t){return R[t];});
+  if(!any)return'<div class="card"><h2>Structure</h2><p class="msg" style="margin:6px 0 0">Not enough candles loaded yet for the structure study.</p></div>';
+  var V=R["4H"]&&R["1D"]?stHtfVerdict(R):{col:"var(--dim)",title:"WAITING FOR 4H AND DAILY",msg:"Not enough higher-timeframe candles yet."};
+  var trend='<div class="card hero" style="--c:'+V.col+'"><div class="row"><h2>Trend · 4H and Daily</h2><span class="lbl">structure, not indicators</span></div><div class="sigv" style="color:'+V.col+';font-size:19px">'+V.title+'</div><p class="msg" style="margin:4px 0 0">'+V.msg+'</p>'+stTfRow(R["4H"],"4H",d,true)+stTfRow(R["1D"],"1D",d,true)+'</div>';
+  var P=stPlan(R),plan='<div class="card hero" style="--c:'+P.col+'"><div class="row"><h2>Scalp plan</h2><span class="lbl">'+(P.grade?"HTF grade "+P.grade:"")+'</span></div><div class="sigv" style="color:'+P.col+'">'+P.title+'</div><p class="msg" style="margin:4px 0 0">'+P.msg+'</p>';
+  if(P.kind==="enter"){
+    var cells='<div class="quad">'+cell("Entry",usd(P.entry,d),P.tg.tf+" trigger")+cell("Stop",usd(P.sl,d),"risk "+usd(P.risk,d),"var(--dn)")+cell("Target 1",usd(P.tp1,d),"R:R "+P.rr1.toFixed(1),"var(--up)")+cell("Target 2",usd(P.tp2,d),"R:R "+P.rr2.toFixed(1),"var(--up)")+'</div>';
+    var ex='<ul class="chk" style="margin-top:10px"><li style="color:var(--dn)">■ Stop '+usd(P.sl,d)+': if price touches it, close everything.</li><li style="color:var(--up)">■ Target 1: close half and move the stop to your entry.</li><li style="color:var(--up)">■ Target 2: close the rest.</li>'+
+      '<li style="color:var(--warn)">■ Leave early on a '+(P.exitEarly?P.exitEarly.tf+" close "+(P.side>0?"below ":"above ")+usd(P.exitEarly.p,d)+" (5m structure breaks).":P.tg.tf+" CHoCH against you.")+'</li></ul>';
+    plan+=cells+ex;
+  }
+  plan+='<div class="msg" style="margin-top:8px;font-size:11px">Rule-based on swing structure, not backtested for profit. Risk a small fixed amount per trade.</div></div>';
+  var sel=S.stf&&R[S.stf]?S.stf:(R["5m"]?"5m":ST_ALL.filter(function(t){return R[t];})[0]);
+  var rows='<div class="card"><div class="row" style="margin-bottom:4px"><h2>Structure by timeframe</h2><span class="lbl">HH HL LH LL = last two swings</span></div>'+ST_TFS.map(function(t){return stTfRow(R[t],t,d,false);}).join("")+'</div>';
+  var segs='<div class="seggrp" style="display:flex;margin-top:2px">'+ST_ALL.map(function(t){return'<button class="seg'+(t===sel?" on":"")+'" style="flex:1;padding-inline:2px" data-stf="'+t+'">'+t+'</button>';}).join("")+'</div>';
+  var X=R[sel],chart="";
+  if(X){
+    var evs=X.ev.slice(-7).reverse().map(function(e){return'<div class="frow"><b style="color:'+(e.kind==="SWEEP"?"var(--warn)":e.dir>0?"var(--up)":"var(--dn)")+'">'+(e.kind==="SWEEP"?"Sweep "+(e.dir>0?"of lows":"of highs"):e.kind+" "+(e.dir>0?"↑":"↓"))+'</b><span class="num">'+usd(e.level,d)+'</span><span class="num mut">'+stAge(X.n-1-e.i,sel)+'</span></div>';}).join("");
+    chart='<div class="card"><div class="row" style="margin-bottom:6px"><h2>'+sel+' structure map</h2><span class="lbl">'+stTrendWord(X.trend)+' · '+stEvTxt(X.lastEv,sel)+'</span></div>'+stSVG(X)+'<div style="margin-top:8px">'+(evs||'<p class="msg">No breaks in the loaded candles.</p>')+'</div></div>';
+  }
+  var key='<p class="foot">Swing = a high or low that is the extreme of 3 candles on each side (2 on 4H and daily), confirmed only after those candles close, and at least 0.6 ATR from the previous swing. BOS = a close beyond the last swing in the trend direction. CHoCH = a close beyond the last swing against the trend, the first sign of a reversal. Sweep = a wick beyond a swing that closes back inside (a stop run). The 1m and 5m hold only a few hours of candles.</p>';
+  return trend+plan+rows+segs+chart+key;
+}
+
 /* ===== Opportunity scanner: checklist and grade per mode and side ===== */
 var HIGHER={"1m":"5m","5m":"15m","15m":"1H","1H":"4H","4H":"1D","1D":"1W","1W":null};
 function scanSide(modeKey,side,st,ag){
@@ -1484,7 +1672,7 @@ function book(){
 function footer(){
   var src=S.source==="live"?(S.feed==="alt"?"Live candles from Bitstamp "+S.sym+"/USDT, refreshed every 30 seconds. BloFin could not be reached from this connection"+(S.altWhy?" ("+S.altWhy+")":"")+", so prices can differ slightly from BloFin and the weekly candle is built from daily candles. The order book, tick-by-tick price, long EMA history need BloFin and are unavailable until it connects. The widget re-checks BloFin every 5 minutes.":"Live BloFin candles, refreshed every minute."):S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-11-19b · trade signal + exit manager · waves removed · TRM card · auto-reconnect · Bitstamp backup feed</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-11-19c · Structure tab · trade signal + exit manager · waves removed · TRM card · auto-reconnect · Bitstamp backup feed</p>';
 }
 
 function render(){
@@ -1496,6 +1684,7 @@ function render(){
   else if(S.tab==="matrix")body=matrix();
   else if(S.tab==="ind")body=indTab();
   else if(S.tab==="setups")body=setups();
+  else if(S.tab==="struct")body=structTab();
   else if(S.tab==="fib")body=fibTab();
   else if(S.tab==="ema")body=emaTab();
   else body=book();
@@ -1503,10 +1692,11 @@ function render(){
 }
 
 root.addEventListener("click",function(e){
-  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-xtf],[data-rebase],[data-pos]");if(!t)return;
+  var t=e.target.closest("[data-sym],[data-mode],[data-tab],[data-itf],[data-ftf],[data-stf],[data-xtf],[data-rebase],[data-pos]");if(!t)return;
   try{var ae=document.activeElement;if(ae&&ae.tagName==="INPUT")ae.blur();}catch(_){}
   if(t.dataset.pos){if(t.dataset.pos==="open")posOpen();else posClose();render();return;}
   if(t.dataset.rebase){delete REFS[t.dataset.rebase];saveRefs();render();return;}
+  if(t.dataset.stf){S.stf=t.dataset.stf;render();return;}
   if(t.dataset.ftf){S.ftf=t.dataset.ftf;render();return;}
   if(t.dataset.xtf){S.xtf=t.dataset.xtf;render();return;}
   if(t.dataset.itf){S.itf=t.dataset.itf;render();return;}
@@ -1531,7 +1721,7 @@ setInterval(function(){
   busy=true;loadLive(S.sym).then(function(){busy=false;if(S.feed==="blofin"&&!S.sec)onLive(S.sym,null);else render();}).catch(function(){busy=false;});
 },10000);
 
-window.__MTF={getS:function(){return S;},trmCard:trmCard,TRM0:TRM0,loadTrm:loadTrm,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast,sigCalc:sigCalc,sigCard:sigCard,posAdvance:posAdvance,trailStop:trailStop,POS:POS,TLOG:TLOG,posOpen:posOpen,posClose:posClose};
+window.__MTF={getS:function(){return S;},structCalc:structCalc,stPlan:stPlan,stAll:stAll,stHtfVerdict:stHtfVerdict,trmCard:trmCard,TRM0:TRM0,loadTrm:loadTrm,emaStudy:emaStudy,emaEvents:emaEvents,emaSeries:emaSeries,emaAgg:emaAgg,loadEma:loadEma,EMA_TFS:EMA_TFS,zigzag:zigzag,fibAnalyze:fibAnalyze,fibConfluence:fibConfluence,revCount:revCount,scanSide:scanSide,scanAll:scanAll,pairFor:pairFor,adxCalc:adxCalc,squeezeInfo:squeezeInfo,buildCtx:buildCtx,REFS:REFS,statusFor:statusFor,touchRefs:touchRefs,kdj:kdjArr,roc:rocArr,wr:wrArr,cci:cciArr,mfi:mfiArr,obv:obvArr,stoch:stochRsiArr,sma:smaArr,S:S,analyze:analyze,aggregate:aggregate,buildSetup:buildSetup,parseSnap:parseSnap,emaArr:emaArr,rsiArr:rsiArr,macdCalc:macdCalc,atrArr:atrArr,bbLast:bbLast,sigCalc:sigCalc,sigCard:sigCard,posAdvance:posAdvance,trailStop:trailStop,POS:POS,TLOG:TLOG,posOpen:posOpen,posClose:posClose};
 start("BTC");
 })();
 </script>
