@@ -92,9 +92,6 @@
   svg .t{fill:var(--mut);font-family:var(--mono);font-size:10px}
   svg .tb{font-weight:600}
 
-  .book{font-family:var(--mono);font-size:13px;display:flex;flex-direction:column;gap:3px}
-  .book div{display:flex;justify-content:space-between}
-  .book .mid{text-align:center;justify-content:center;background:var(--panel2);padding:5px;margin:4px 0;color:var(--acc);font-weight:600;border-radius:5px}
 
   label.f,div.f{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase;font-weight:600;min-width:0}
   input.in{font-family:var(--mono);font-size:16px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;box-sizing:border-box;min-width:0}
@@ -413,7 +410,7 @@ function dname(d){return d==="LONG"?"LONG":d==="SHORT"?"SHORT":"WAIT";}
 function stamp(ms){try{return new Date(ms).toLocaleString("en-US",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});}catch(e){return "";}}
 
 /* ===== State ===== */
-var S={itf:null,stale:[],sym:"BTC",mode:"SWING",tab:"resumen",source:"loading",ws:"OFF",price:null,data:{},forming:{},A:{},book:{asks:[],bids:[]},asOf:null,err:"",tF:{},ctx:{},loadedAt:0,ftf:"1H",emaRaw:{},emaAt:0,emaErr:"",xtf:"4H"};
+var S={itf:null,stale:[],sym:"BTC",mode:"SWING",tab:"resumen",source:"loading",ws:"OFF",price:null,data:{},forming:{},A:{},asOf:null,err:"",tF:{},ctx:{},loadedAt:0,ftf:"1H",emaRaw:{},emaAt:0,emaErr:"",xtf:"4H"};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
 S.mode=LS.get("mtf.mode","SWING");if(!MODES[S.mode])S.mode="SWING";
 
@@ -612,13 +609,12 @@ function connectWS(sym){
   function open(){
     if(cancelled)return;S.ws="CONNECTING";
     var sk=new WebSocket(WS_URL);ws=sk;
-    sk.onopen=function(){if(cancelled||ws!==sk)return;attempts=0;lastMsg=Date.now();S.ws="OPEN";sk.send(JSON.stringify({op:"subscribe",args:[{channel:"tickers",instId:inst},{channel:"books5",instId:inst}]}));
+    sk.onopen=function(){if(cancelled||ws!==sk)return;attempts=0;lastMsg=Date.now();S.ws="OPEN";sk.send(JSON.stringify({op:"subscribe",args:[{channel:"tickers",instId:inst}]}));
       ping=setInterval(function(){if(Date.now()-lastMsg>45000){sk.close();return;}if(sk.readyState===1)sk.send("ping");},20000);schedule();};
     sk.onmessage=function(ev){
       if(cancelled||ws!==sk)return;lastMsg=Date.now();if(ev.data==="pong")return;
       try{var r=JSON.parse(ev.data);if(!r.arg||r.arg.instId!==inst||!r.data||!r.data.length)return;
         if(r.arg.channel==="tickers"){var p=parseFloat(r.data[0].last);if(isFinite(p)){S.price=p;bump(p);schedule();}}
-        else if(r.arg.channel==="books5"){S.book={asks:lv(r.data[0].asks),bids:lv(r.data[0].bids)};if(S.tab==="book")schedule();}
       }catch(e){}
     };
     sk.onerror=function(){try{sk.close();}catch(e){}};
@@ -634,7 +630,7 @@ var pending=null;
 function schedule(){if(pending)return;pending=setTimeout(function(){pending=null;if(S.source==="live")recompute();render();},700);}
 
 function start(sym){
-  S.sym=sym;S.emaRaw={};S.emaAt=0;S.emaErr="";S.source="loading";S.book={asks:[],bids:[]};S.err="";stopWS();
+  S.sym=sym;S.emaRaw={};S.emaAt=0;S.emaErr="";S.source="loading";S.err="";stopWS();
   if(sym==="BTC"){useSnapshot();S.source="loading";}else{S.data={};S.forming={};S.A={};S.price=null;}
   render();
   function fallback(e,pre){
@@ -693,7 +689,7 @@ function head(ag){
     '<div class="modes"><div class="seggrp">'+modes+'</div></div></div>';
 }
 function tabsHTML(){
-  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["struct","Struct."],["fib","Fib"],["ema","EMAs"],["book","Book"]];
+  var T=[["resumen","Summary"],["matrix","Matrix"],["ind","Indic."],["setups","Setups"],["struct","Struct."],["fib","Fib"],["ema","EMAs"]];
   return'<div class="tabs">'+T.map(function(t){return'<button class="tab'+(S.tab===t[0]?" on":"")+'" data-tab="'+t[0]+'">'+t[1]+'</button>';}).join("")+'</div>';
 }
 
@@ -1657,22 +1653,10 @@ function setups(){
   return html+'<p class="foot">Levels come from ATR, pivots and key levels. Grades are a checklist, not a guarantee. Always check the context before trading.</p>';
 }
 
-function book(){
-  var d=dec(S.sym);
-  if(S.source!=="live")return'<div class="card"><h2>Order book</h2><p class="msg" style="margin:8px 0 0">The order book needs a live BloFin connection. It is not available in this snapshot view.</p></div>';
-  if(!S.book.asks.length&&!S.book.bids.length)return'<div class="card"><h2>Order book</h2><p class="msg" style="margin:8px 0 0">'+(S.ws==="OPEN"?"Waiting for order book data…":"No tick connection to BloFin.")+'</p></div>';
-  var asks=S.book.asks.slice().reverse().map(function(r){return'<div><span class="dn">'+usd(r[0],d)+'</span><span>'+r[1].toLocaleString("en-US",{maximumFractionDigits:2})+'</span></div>';}).join("");
-  var bids=S.book.bids.map(function(r){return'<div><span class="up">'+usd(r[0],d)+'</span><span>'+r[1].toLocaleString("en-US",{maximumFractionDigits:2})+'</span></div>';}).join("");
-  var bv=0,av=0;S.book.bids.forEach(function(r){bv+=r[1];});S.book.asks.forEach(function(r){av+=r[1];});
-  var imb=bv+av?bv/(bv+av)*100:50;
-  return'<div class="card"><div class="row" style="margin-bottom:8px"><h2>BloFin book · '+S.sym+'/USDT</h2><span class="lbl">size in contracts</span></div><div class="book">'+asks+'<div class="mid">'+usd(S.price,d)+'</div>'+bids+'</div></div>'+
-    '<div class="card"><div class="lbl">Buy pressure (5 levels)</div><div class="num" style="font-size:20px;margin-top:4px;color:'+(imb>=55?"var(--up)":imb<=45?"var(--dn)":"var(--warn)")+'">'+imb.toFixed(0)+'% bids</div></div>';
-}
-
 function footer(){
   var src=S.source==="live"?(S.feed==="alt"?"Live candles from Bitstamp "+S.sym+"/USDT, refreshed every 30 seconds. BloFin could not be reached from this connection"+(S.altWhy?" ("+S.altWhy+")":"")+", so prices can differ slightly from BloFin and the weekly candle is built from daily candles. The order book, tick-by-tick price, long EMA history need BloFin and are unavailable until it connects. The widget re-checks BloFin every 5 minutes.":"Live BloFin candles, refreshed every minute."):S.source==="snapshot"?"BloFin BTC-USDT candle snapshot from "+stamp(S.asOf)+(S.err?". Live connection unavailable ("+S.err+").":". Open the web version for live data."):"";
   if(S.source==="live"&&S.stale.length)src+=" Skipped due to stale BloFin data: "+S.stale.join(", ")+".";
-  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-11-19c · Structure tab · trade signal + exit manager · waves removed · TRM card · auto-reconnect · Bitstamp backup feed</p>';
+  return'<p class="foot" style="margin:14px 0 0">'+src+' Indicators: EMA 5/9 (1m, 5m, 1D, 1W), EMA 9/21/50/200, RSI 14, MACD 12-26-9, VOL, KDJ 9-3-3, ROC 12, Williams %R 14, CCI 20, MFI 14, OBV, StochRSI 14, Bollinger 20-2, ATR 14. Automated technical analysis; not financial advice.</p><p class="foot" style="margin:6px 0 0">Version 2026-11-20a · Structure tab · Book removed · trade signal + exit manager · waves removed · TRM card · auto-reconnect · Bitstamp backup feed</p>';
 }
 
 function render(){
@@ -1686,8 +1670,7 @@ function render(){
   else if(S.tab==="setups")body=setups();
   else if(S.tab==="struct")body=structTab();
   else if(S.tab==="fib")body=fibTab();
-  else if(S.tab==="ema")body=emaTab();
-  else body=book();
+  else body=emaTab();
   root.innerHTML=head(ag)+tabsHTML()+'<div class="panel">'+body+'</div>'+footer();
 }
 
